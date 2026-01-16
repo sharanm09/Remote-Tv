@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV Remote Control Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 10px;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .main-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 20px); /* Account for body padding */
+            gap: 15px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #4CAF50;
+            font-size: 20px;
+        }
+        
+        .tv-section {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+        
+        .btn-logs-toggle {
+            background: #ff9800;
+            color: white;
+            padding: 8px 16px;
+            font-size: 12px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .btn-logs-toggle:hover {
+            background: #f57c00;
+        }
+        
+        .btn-logs-toggle.enabled {
+            background: #4CAF50;
+        }
+        
+        .btn-logs-toggle.enabled:hover {
+            background: #45a049;
+        }
+        
+        .tv-section h2 {
+            margin-bottom: 10px;
+            color: #4CAF50;
+            font-size: 14px;
+        }
+        
+        .connect-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .connect-buttons button {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-connect {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-connect:hover {
+            background: #45a049;
+        }
+        
+        .btn-disconnect {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-disconnect:hover {
+            background: #da190b;
+        }
+        
+        .btn-remote {
+            background: #2196F3;
+            color: white;
+            min-width: 45px; /* Smaller remote buttons */
+            height: 35px;
+            padding: 5px 8px;
+            font-size: 11px; /* Smaller font size */
+        }
+        
+        .btn-remote:hover {
+            background: #0b7dda;
+        }
+        
+        .btn-remote:active {
+            transform: scale(0.95);
+        }
+        
+        .status {
+            padding: 8px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .status.connected {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status.disconnected {
+            background: #666;
+            color: #ccc;
+        }
+        
+        .status.connecting {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .status.error {
+            background: #f44336;
+            color: white;
+        }
+        
+        .content-area {
+            display: flex;
+            gap: 10px;
+            flex: 1; /* Allows this area to fill available height */
+            min-height: 0; /* Important for flex items with overflow */
+        }
+        
+        .remote-panel {
+            width: 25%;
+            min-width: 25%;
+            max-width: 25%;
+            background: #333;
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Contains internal scroll */
+            flex-shrink: 0;
+        }
+
+        .remote-panel h2 {
+            margin-bottom: 10px;
+            color: #4CAF50;
+            font-size: 16px;
+            text-align: center;
+        }
+        
+        .remote-control-inner {
+            display: none;
+            flex-direction: column;
+            flex: 1; /* Allows inner remote to take available height */
+            min-height: 0;
+            overflow-y: auto; /* Scroll for remote buttons */
+            padding-right: 5px; /* Space for scrollbar */
+        }
+
+        .remote-control-inner.active {
+            display: flex;
+        }
+        
+        .terminal-container {
+            width: 75%;
+            min-width: 75%;
+            max-width: 75%;
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 15px;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            overflow: hidden; /* Contains internal scroll */
+            flex: 1; /* Allows terminal to fill available height */
+            min-height: 0; /* Important for flex items with overflow */
+        }
+        
+        .terminal-container.enabled {
+            display: flex; /* Show when logs are enabled */
+        }
+        
+        .terminal-header {
+            background: #2a2a2a;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #4CAF50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .terminal {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #0f0;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto; /* Scroll for terminal content */
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+        
+        .terminal-line {
+            margin-bottom: 5px;
+        }
+        
+        .terminal-line.info {
+            color: #4CAF50;
+        }
+        
+        .terminal-line.command {
+            color: #2196F3;
+        }
+        
+        .terminal-line.log {
+            color: #0f0;
+        }
+        
+        .terminal-line.error {
+            color: #f44336;
+        }
+        
+        .clear-terminal {
+            background: #666;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .clear-terminal:hover {
+            background: #777;
+        }
+        
+        .remote-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .remote-row {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 6px;
+        }
+        
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            max-width: 120px;
+            margin: 0 auto 10px;
+        }
+        
+        .dpad button {
+            aspect-ratio: 1;
+            padding: 5px;
+            font-size: 11px;
+        }
+        
+        .dpad .btn-up {
+            grid-column: 2;
+        }
+        
+        .dpad .btn-down {
+            grid-column: 2;
+            grid-row: 3;
+        }
+        
+        .dpad .btn-left {
+            grid-column: 1;
+            grid-row: 2;
+        }
+        
+        .dpad .btn-right {
+            grid-column: 3;
+            grid-row: 2;
+        }
+        
+        .dpad .btn-center {
+            grid-column: 2;
+            grid-row: 2;
+        }
+        
+        .volume-controls {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        
+        .message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+            font-size: 12px;
+        }
+        
+        .message.show {
+            display: block;
+        }
+        
+        .message.success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .message.error {
+            background: #f44336;
+            color: white;
+        }
+        
+        .message.info {
+            background: #2196F3;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <h1>TV Remote Control</h1>
+        
+        <div class="tv-section">
+            <h2>Connect to TV</h2>
+            <div class="connect-buttons">
+                <button class="btn-connect" onclick="connectTV('samsung_tv', '192.168.0.29', 'Samsung TV')">Connect Samsung TV</button>
+                <button class="btn-connect" onclick="connectTV('lg_tv', '192.168.0.134', 'LG TV')">Connect LG TV</button>
+                <button class="btn-connect" onclick="connectTV('android', '192.168.0.116', 'Mi Android TV')">Connect Mi Android TV</button>
+                <button class="btn-disconnect" onclick="disconnectTV()">Disconnect</button>
+            </div>
+            <div id="status" class="status disconnected">Not Connected</div>
+            <div id="message" class="message"></div>
+        </div>
+
+        <div class="content-area">
+            <div class="remote-panel">
+                <h2>Remote Control</h2>
+                <button id="logsToggleBtn" class="btn-logs-toggle" onclick="toggleLogs()">Enable Logs</button>
+                <div id="remoteControl" class="remote-control-inner">
+                    <div class="dpad">
+                        <button class="btn-remote btn-up" onclick="sendKey('up')">↑</button>
+                        <button class="btn-remote btn-left" onclick="sendKey('left')">←</button>
+                        <button class="btn-remote btn-center" onclick="sendKey('enter')">OK</button>
+                        <button class="btn-remote btn-right" onclick="sendKey('right')">→</button>
+                        <button class="btn-remote btn-down" onclick="sendKey('down')">↓</button>
+                    </div>
+                    
+                    <div class="remote-row">
+                        <button class="btn-remote" onclick="sendKey('home')">Home</button>
+                        <button class="btn-remote" onclick="sendKey('back')">Back</button>
+                        <button class="btn-remote" onclick="sendKey('menu')">Menu</button>
+                    </div>
+                    
+                    <div class="volume-controls">
+                        <button class="btn-remote" onclick="sendKey('volume_down')">Vol -</button>
+                        <button class="btn-remote" onclick="sendKey('mute')">Mute</button>
+                        <button class="btn-remote" onclick="sendKey('volume_up')">Vol +</button>
+                    </div>
+                    
+                    <div class="remote-row">
+                        <button class="btn-remote" onclick="sendKey('play')">Play</button>
+                        <button class="btn-remote" onclick="sendKey('pause')">Pause</button>
+                        <button class="btn-remote" onclick="sendKey('stop')">Stop</button>
+                    </div>
+                    
+                    <div class="remote-row">
+                        <button class="btn-remote" onclick="sendKey('channel_down')">Ch -</button>
+                        <button class="btn-remote" onclick="sendKey('channel_up')">Ch +</button>
+                    </div>
+                    
+                    <div class="remote-row">
+                        <button class="btn-remote" onclick="sendKey('power')">Power</button>
+                        <button class="btn-remote" onclick="sendKey('info')">Info</button>
+                    </div>
+                    
+                    <div class="remote-row">
+                        <button class="btn-remote" onclick="sendKey('0')">0</button>
+                        <button class="btn-remote" onclick="sendKey('1')">1</button>
+                        <button class="btn-remote" onclick="sendKey('2')">2</button>
+                        <button class="btn-remote" onclick="sendKey('3')">3</button>
+                    </div>
+                    
+                    <div class="remote-row">
+                        <button class="btn-remote" onclick="sendKey('4')">4</button>
+                        <button class="btn-remote" onclick="sendKey('5')">5</button>
+                        <button class="btn-remote" onclick="sendKey('6')">6</button>
+                        <button class="btn-remote" onclick="sendKey('7')">7</button>
+                    </div>
+                    
+                    <div class="remote-row">
+                        <button class="btn-remote" onclick="sendKey('8')">8</button>
+                        <button class="btn-remote" onclick="sendKey('9')">9</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span>TV Logs Terminal</span>
+                    <button class="clear-terminal" onclick="clearTerminal()">Clear</button>
+                </div>
+                <div id="terminal" class="terminal">Waiting for connection...\n</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:5042';
+        let currentSessionId = null;
+        let currentDeviceType = null;
+        let currentTVName = null;
+        let logsEnabled = false;
+        
+        function toggleLogs() {
+            logsEnabled = !logsEnabled;
+            const terminalContainer = document.querySelector('.terminal-container');
+            const toggleBtn = document.getElementById('logsToggleBtn');
+            
+            if (logsEnabled) {
+                terminalContainer.classList.add('enabled');
+                toggleBtn.textContent = 'Disable Logs';
+                toggleBtn.classList.add('enabled');
+                // If connected, fetch logs immediately
+                if (currentSessionId) {
+                    fetchTVLogs();
+                }
+            } else {
+                terminalContainer.classList.remove('enabled');
+                toggleBtn.textContent = 'Enable Logs';
+                toggleBtn.classList.remove('enabled');
+            }
+        }
+        
+        function addToTerminal(text, type = 'log') {
+            // Only add to terminal if logs are enabled
+            if (!logsEnabled) {
+                return;
+            }
+            const terminal = document.getElementById('terminal');
+            const line = document.createElement('div');
+            line.className = `terminal-line ${type}`;
+            line.textContent = text;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+        
+        function clearTerminal() {
+            if (!logsEnabled) {
+                return;
+            }
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML = '';
+            addToTerminal('Terminal cleared.\n', 'info');
+        }
+        
+        async function fetchTVLogs() {
+            // Only fetch logs if logs are enabled
+            if (!logsEnabled || !currentSessionId) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/sessions/${currentSessionId}/logs?refresh=true`);
+                const data = await response.json();
+                
+                if (data.success && data.logs) {
+                    // Only show TV logs, filter out empty or header lines
+                    const logs = data.logs.trim();
+                    if (logs && logs.length > 0) {
+                        // Split logs by lines and filter
+                        const logLines = logs.split('\n').filter(line => {
+                            // Filter out common backend/testing log patterns
+                            const lowerLine = line.toLowerCase();
+                            return !lowerLine.includes('api hit') &&
+                                   !lowerLine.includes('api done') &&
+                                   !lowerLine.includes('api error') &&
+                                   !lowerLine.includes('logger.info') &&
+                                   !lowerLine.includes('logger.warning') &&
+                                   !lowerLine.includes('logger.error') &&
+                                   !lowerLine.includes('fastapi') &&
+                                   !lowerLine.includes('uvicorn') &&
+                                   line.trim().length > 0;
+                        });
+                        
+                        if (logLines.length > 0) {
+                            addToTerminal('\n' + logLines.join('\n'), 'log');
+                        }
+                    }
+                }
+            } catch (error) {
+                // Silently fail - don't spam terminal with fetch errors
+            }
+        }
+        
+        async function connectTV(deviceType, ip, tvName) {
+            // Disconnect any existing connection first
+            if (currentSessionId) {
+                await disconnectTV();
+            }
+            
+            const statusDiv = document.getElementById('status');
+            const messageDiv = document.getElementById('message');
+            const remoteControl = document.getElementById('remoteControl');
+            
+            statusDiv.className = 'status connecting';
+            statusDiv.textContent = `Connecting to ${tvName}...`;
+            hideMessage();
+            
+            // Clear terminal and show connection message (only if logs enabled)
+            if (logsEnabled) {
+                clearTerminal();
+                addToTerminal(`Connecting to ${tvName} (${ip})...`, 'info');
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ip: ip,
+                        device_type: deviceType,
+                        tv_name: tvName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentSessionId = data.sessionId;
+                    currentDeviceType = deviceType;
+                    currentTVName = tvName;
+                    statusDiv.className = 'status connected';
+                    statusDiv.textContent = `Connected to ${tvName} (${ip})`;
+                    const remoteControl = document.getElementById('remoteControl');
+                    if (remoteControl) {
+                        remoteControl.classList.add('active');
+                    }
+                    showMessage('Successfully connected!', 'success');
+                    
+                    // Show connection success in terminal (only if logs enabled)
+                    if (logsEnabled) {
+                        addToTerminal(`✓ Connected to ${tvName}`, 'info');
+                        addToTerminal(`\nTV Logs for ${tvName}:`, 'info');
+                        addToTerminal('─'.repeat(50), 'info');
+                        
+                        // Fetch initial logs after a short delay
+                        setTimeout(async () => {
+                            await fetchTVLogs();
+                        }, 1000);
+                    }
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `Connection Failed`;
+                    showMessage(data.detail || 'Connection failed', 'error');
+                    if (logsEnabled) {
+                        addToTerminal(`✗ Connection failed: ${data.detail || 'Unknown error'}`, 'error');
+                    }
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `Connection Error`;
+                showMessage(`Error: ${error.message}`, 'error');
+                if (logsEnabled) {
+                    addToTerminal(`✗ Connection error: ${error.message}`, 'error');
+                }
+            }
+        }
+        
+        async function disconnectTV() {
+            if (!currentSessionId) {
+                return;
+            }
+            
+            const statusDiv = document.getElementById('status');
+            const remoteControl = document.getElementById('remoteControl');
+            
+            try {
+                const response = await fetch(`${API_BASE}/disconnect/${currentSessionId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    if (logsEnabled) {
+                        addToTerminal(`\nDisconnected from ${currentTVName || 'TV'}`, 'info');
+                    }
+                    currentSessionId = null;
+                    currentDeviceType = null;
+                    currentTVName = null;
+                    statusDiv.className = 'status disconnected';
+                    statusDiv.textContent = 'Not Connected';
+                    const remoteControl = document.getElementById('remoteControl');
+                    if (remoteControl) {
+                        remoteControl.classList.remove('active');
+                    }
+                    showMessage('Disconnected successfully', 'info');
+                }
+            } catch (error) {
+                showMessage(`Disconnect error: ${error.message}`, 'error');
+                if (logsEnabled) {
+                    addToTerminal(`Disconnect error: ${error.message}`, 'error');
+                }
+            }
+        }
+        
+        async function sendKey(action) {
+            if (!currentSessionId) {
+                showMessage('Please connect to a TV first', 'error');
+                return;
+            }
+            
+            // Show button click in terminal (only if logs enabled)
+            if (logsEnabled) {
+                const buttonName = action.charAt(0).toUpperCase() + action.slice(1).replace('_', ' ');
+                addToTerminal(`\n${currentTVName} - Button clicked: ${buttonName}`, 'command');
+                addToTerminal('─'.repeat(50), 'command');
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/send/${currentSessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        msg: {
+                            type: 'key',
+                            action: action
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Wait a bit then fetch logs (only if logs enabled)
+                    if (logsEnabled) {
+                        setTimeout(async () => {
+                            await fetchTVLogs();
+                        }, 500);
+                    }
+                } else {
+                    showMessage(`Command failed: ${data.error || 'Unknown error'}`, 'error');
+                    if (logsEnabled) {
+                        addToTerminal(`✗ Command failed: ${data.error || 'Unknown error'}`, 'error');
+                    }
+                }
+            } catch (error) {
+                showMessage(`Error sending command: ${error.message}`, 'error');
+                if (logsEnabled) {
+                    addToTerminal(`✗ Error: ${error.message}`, 'error');
+                }
+            }
+        }
+        
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type} show`;
+            setTimeout(() => {
+                hideMessage();
+            }, 3000);
+        }
+        
+        function hideMessage() {
+            const messageDiv = document.getElementById('message');
+            messageDiv.classList.remove('show');
+        }
+    </script>
+</body>
+</html>
