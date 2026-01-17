@@ -24,7 +24,7 @@ const LoginPage = () => {
         const payload = { email, password };
 
         try {
-            const response = await fetch(`http://localhost:5000${endpoint}`, {
+            const response = await fetch(`http://72.61.240.130:5000${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
