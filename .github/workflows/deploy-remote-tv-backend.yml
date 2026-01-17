@@ -1,0 +1,53 @@
+name: Deploy Remote TV Backend
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload backend to VM
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "backend"
+          target: "~/remote-tv/backend"
+          overwrite: true
+          rm: true
+
+      - name: Build & run backend
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: GITHUB_SHA
+          script: |
+            set -e
+            cd ~/remote-tv/backend
+
+            docker rm -f remote-tv-backend || true
+
+            docker build --no-cache -t remote-tv-backend:${GITHUB_SHA} .
+
+            docker run -d \
+              --name remote-tv-backend \
+              --restart unless-stopped \
+              --env-file .env \
+              --add-host=host.docker.internal:host-gateway \
+              -p 5000:5000 \
+              remote-tv-backend:${GITHUB_SHA}
+
+            docker image prune -f
