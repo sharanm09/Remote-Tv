@@ -26,21 +26,9 @@ const server = http.createServer(app);
 //     }
 // });
 
-const allowedOrigins = [
-    'http://localhost:3000',
-    process.env.FRONTEND_URL
-];
-
 const io = new Server(server, {
     cors: {
-        origin: (origin, callback) => {
-            if (!origin) return callback(null, true);
-            if (allowedOrigins.includes(origin)) {
-                return callback(null, true);
-            }
-            return callback(new Error('Not allowed by CORS'));
-        },
-        methods: ['GET', 'POST'],
+        origin: true,
         credentials: true
     }
 });
@@ -1085,29 +1073,8 @@ app.use((req, res, next) => {
 // }));
 
 app.use(cors({
-    origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-
-        const allowedOrigins = [
-            'http://localhost:3000',
-            process.env.FRONTEND_URL
-        ];
-
-        if (allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true,
-    allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'CSRF-Token',
-        'X-XSRF-TOKEN',
-        'X-Requested-With'
-    ],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+    origin: true,
+    credentials: true
 }));
 
 app.use(express.json());
