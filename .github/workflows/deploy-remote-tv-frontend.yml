@@ -1,0 +1,51 @@
+name: Deploy Remote TV Frontend
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "frontend/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload frontend to VM
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "frontend"
+          target: "~/remote-tv/frontend"
+          overwrite: true
+          rm: true
+
+      - name: Build & run frontend
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: GITHUB_SHA
+          script: |
+            set -e
+            cd ~/remote-tv/frontend
+
+            docker rm -f remote-tv-frontend || true
+
+            docker build --no-cache -t remote-tv-frontend:${GITHUB_SHA} .
+
+            docker run -d \
+              --name remote-tv-frontend \
+              --restart unless-stopped \
+              -p 3000:80 \
+              remote-tv-frontend:${GITHUB_SHA}
+
+            docker image prune -f
