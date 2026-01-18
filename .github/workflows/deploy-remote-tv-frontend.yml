@@ -12,8 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      # 2️⃣ Copy frontend folder to VM
       - name: Upload frontend to VM
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -22,10 +25,11 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT || 22 }}
           source: "frontend"
-          target: "~/remote-tv/frontend"
+          target: "~/remote-tv/Remote-Tv"
           overwrite: true
           rm: true
 
+      # 3️⃣ Build & run frontend container
       - name: Build & run frontend
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -36,19 +40,24 @@ jobs:
           envs: GITHUB_SHA
           script: |
             set -e
+
+            echo "📁 Moving to frontend directory"
             cd ~/remote-tv/Remote-Tv/frontend
 
-# Stop old container
-           docker rm -f remote-tv-frontend || true
+            echo "🛑 Removing old container (if exists)"
+            docker rm -f remote-tv-frontend || true
 
-# FORCE rebuild (NO CACHE)
-           docker build --no-cache -t remote-tv-frontend:latest .
+            echo "🏗️ Building frontend image (no cache)"
+            docker build --no-cache -t remote-tv-frontend:${GITHUB_SHA} .
 
-# Run again
-           docker run -d \
-             --name remote-tv-frontend \
-             --restart unless-stopped \
-             -p 3000:80 \
-             remote-tv-frontend:latest
+            echo "🚀 Running frontend container"
+            docker run -d \
+              --name remote-tv-frontend \
+              --restart unless-stopped \
+              -p 3000:80 \
+              remote-tv-frontend:${GITHUB_SHA}
 
+            echo "🧹 Cleaning unused images"
             docker image prune -f
+
+            echo "✅ Frontend deployment completed"
