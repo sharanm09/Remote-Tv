@@ -38,14 +38,17 @@ jobs:
             set -e
             cd ~/remote-tv/Remote-Tv/frontend
 
-            docker rm -f remote-tv-frontend || true
+# Stop old container
+           docker rm -f remote-tv-frontend || true
 
-            docker build --no-cache -t remote-tv-frontend:${GITHUB_SHA} .
+# FORCE rebuild (NO CACHE)
+           docker build --no-cache -t remote-tv-frontend:latest .
 
-            docker run -d \
-              --name remote-tv-frontend \
-              --restart unless-stopped \
-              -p 3000:80 \
-              remote-tv-frontend:${GITHUB_SHA}
+# Run again
+           docker run -d \
+             --name remote-tv-frontend \
+             --restart unless-stopped \
+             -p 3000:80 \
+             remote-tv-frontend:latest
 
             docker image prune -f
