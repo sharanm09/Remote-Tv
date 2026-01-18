@@ -36,7 +36,7 @@ jobs:
           envs: GITHUB_SHA
           script: |
             set -e
-            cd ~/remote-tv/frontend
+            cd ~/remote-tv/Remote-Tv/frontend
 
             docker rm -f remote-tv-frontend || true
 
