@@ -18,17 +18,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
 const server = http.createServer(app);
-// const io = new Server(server, {
-//     cors: {
-//         origin: 'http://localhost:3000',
-//         methods: ['GET', 'POST'],
-//         credentials: true
-//     }
-// });
-
 const io = new Server(server, {
     cors: {
-        origin: true,
+        origin: (origin, callback) => callback(null, true),
+        methods: ['GET', 'POST'],
         credentials: true
     }
 });
@@ -52,7 +45,7 @@ io.on('connection', (socket) => {
 
     socket.on('join-stream', async ({ deviceId, isStreamer, streamId, userId }) => {
         socket.join(deviceId);
-        
+
         // Track socket-to-device mapping for immediate cleanup on disconnect
         if (!socketToDeviceMap[socket.id]) {
             socketToDeviceMap[socket.id] = [];
@@ -82,7 +75,7 @@ io.on('connection', (socket) => {
                     try {
                         // Fetch user by ID properly (handle both UUID and string formats)
                         const user = await User.findOne({ where: { id: userId } });
-                    if (user) {
+                        if (user) {
                             streamerName = user.displayName || user.email || 'Unknown User';
                             console.log(`✅ Found streamer user: ${streamerName} (ID: ${userId})`);
                         } else {
@@ -151,34 +144,34 @@ io.on('connection', (socket) => {
 
         } else {
             console.log(`📡 Viewer ${socket.id} (userId: ${userId}) joined room: ${deviceId}`);
-            
+
             // Track connected viewer - PREVENT MULTIPLE VIEWERS
             try {
                 const device = await Device.findByPk(deviceId);
                 // Check if device has an active streamer (streamerSocketId exists) OR is live and streaming
                 const hasActiveStreamer = device && (device.streamerSocketId || (device.status === 'live' && device.isStreaming));
-                
+
                 if (hasActiveStreamer) {
                     // Check if someone is already connected
                     if (device.connectedViewerId && device.connectedViewerId !== userId) {
                         console.log(`⚠️ Device ${deviceId} already has a viewer connected: ${device.connectedViewerName} (${device.connectedViewerId})`);
-                        socket.emit('viewer-rejected', { 
-                            reason: `Device is already in use by ${device.connectedViewerName || 'another user'}` 
+                        socket.emit('viewer-rejected', {
+                            reason: `Device is already in use by ${device.connectedViewerName || 'another user'}`
                         });
                         return; // Prevent this viewer from connecting
                     }
-                    
+
                     // First viewer connecting or same viewer reconnecting - track them
                     // Fetch user details by ID properly
                     const User = require('./models/User');
                     let viewerName = 'Unknown User';
                     let viewerUserId = userId || null;
-                    
+
                     if (userId) {
                         try {
                             // Try to find user by ID (handle both UUID and string formats)
-                            const user = await User.findOne({ 
-                                where: { id: userId } 
+                            const user = await User.findOne({
+                                where: { id: userId }
                             });
                             if (user) {
                                 viewerName = user.displayName || user.email || 'Unknown User';
@@ -191,7 +184,7 @@ io.on('connection', (socket) => {
                             console.error(`❌ Error fetching user ${userId}:`, userErr.message);
                         }
                     }
-                    
+
                     // Update device with viewer info AND userId/username
                     await Device.update({
                         connectedViewerId: viewerUserId,
@@ -200,7 +193,7 @@ io.on('connection', (socket) => {
                         userId: viewerUserId, // Update userId with viewer's ID
                         username: viewerName // Update username with viewer's name
                     }, { where: { id: deviceId } });
-                    
+
                     // Broadcast update
                     io.emit('device-status-update', {
                         deviceId,
@@ -210,13 +203,13 @@ io.on('connection', (socket) => {
                         userId: viewerUserId,
                         username: viewerName
                     });
-                    
+
                     console.log(`✅ Viewer ${viewerName} (${viewerUserId}) connected to device ${deviceId} - userId and username updated`);
                 }
             } catch (err) {
                 console.error(`❌ Failed to track viewer: ${err.message}`);
             }
-            
+
             if (roomStreamers[deviceId]) {
                 console.log(`🔔 Notifying new viewer ${socket.id} that streamer is present`);
                 socket.emit('streamer-present');
@@ -330,7 +323,7 @@ io.on('connection', (socket) => {
                         console.error(`❌ Error fetching user ${userId}:`, userErr.message);
                     }
                 }
-                
+
                 // Update device to mark WebRTC as connected
                 await Device.update({
                     connectedViewerId: userId, // Keep viewer ID
@@ -382,7 +375,7 @@ io.on('connection', (socket) => {
 
     socket.on('streamer-stopped', async ({ deviceId }) => {
         console.log(`🛑 Streamer ${socket.id} stopped streaming for device ${deviceId}`);
-        
+
         // Update device status to offline when streaming stops
         try {
             await Device.update({
@@ -438,13 +431,13 @@ io.on('connection', (socket) => {
     });
 
     // ===== Remote Control Handlers (Python Backend Proxy) =====
-    
+
     // Check existing session for device
     socket.on('checkExistingSession', async ({ deviceData }, callback) => {
         try {
             console.log('🔍 [Backend] Checking existing session for device:', deviceData);
             const response = await fetch(`${PYTHON_BACKEND_URL}/sessions/check/${deviceData.deviceIP}?device_type=${deviceData.deviceType}`);
-            
+
             if (response.ok) {
                 const data = await response.json();
                 console.log('✅ [Backend] Session check result:', data.exists ? 'Found existing' : 'No existing session');
@@ -460,7 +453,7 @@ io.on('connection', (socket) => {
             callback({ success: false, exists: false, error: error.message });
         }
     });
-    
+
     // Connect to device for remote control
     socket.on('connectDevice', async ({ deviceData }, callback) => {
         try {
@@ -470,7 +463,7 @@ io.on('connection', (socket) => {
                 cameraName: deviceData.cameraName,
                 pythonBackendUrl: PYTHON_BACKEND_URL
             });
-            
+
             const response = await fetch(`${PYTHON_BACKEND_URL}/sessions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -481,13 +474,13 @@ io.on('connection', (socket) => {
                 }),
                 signal: AbortSignal.timeout(10000) // 10 second timeout
             });
-            
+
             console.log(`📥 [Backend] Python backend response for ${deviceData.cameraName}:`, {
                 status: response.status,
                 statusText: response.statusText,
                 ok: response.ok
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 console.log(`✅ [Backend] Device connected via Python backend for ${deviceData.cameraName}:`, {
@@ -495,26 +488,26 @@ io.on('connection', (socket) => {
                     deviceIP: deviceData.deviceIP,
                     fullResponse: JSON.stringify(data, null, 2)
                 });
-                
+
                 // Verify sessionId exists
                 if (!data.sessionId) {
                     console.error('❌ [Backend] No sessionId in response from Python backend:', data);
-                    callback({ 
-                        success: false, 
+                    callback({
+                        success: false,
                         error: 'No sessionId returned from Python backend. Response: ' + JSON.stringify(data)
                     });
                     return;
                 }
-                
+
                 // Map sessionId to deviceId (using cameraName as deviceId)
                 const deviceId = deviceData.cameraName || deviceData.deviceIP;
                 sessionToDeviceMap[data.sessionId] = deviceId;
-                
+
                 // Initialize logs array for this device if not exists
                 if (!deviceLogs[deviceId]) {
                     deviceLogs[deviceId] = [];
                 }
-                
+
                 // Add connection log
                 const logEntry = {
                     id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -524,12 +517,12 @@ io.on('connection', (socket) => {
                     userId: null
                 };
                 deviceLogs[deviceId].push(logEntry);
-                
+
                 // Keep only last MAX_LOGS_PER_DEVICE logs
                 if (deviceLogs[deviceId].length > MAX_LOGS_PER_DEVICE) {
                     deviceLogs[deviceId] = deviceLogs[deviceId].slice(-MAX_LOGS_PER_DEVICE);
                 }
-                
+
                 // Emit device connection log to ALL connected clients via Socket.IO (broadcast)
                 console.log('📤 [Backend] Broadcasting deviceConnectionLog (connected) to all clients:', deviceData.cameraName);
                 io.emit('deviceConnectionLog', {
@@ -544,10 +537,10 @@ io.on('connection', (socket) => {
                     },
                     timestamp: new Date().toISOString()
                 });
-                
+
                 // Emit device-specific log event (only to users viewing this device)
                 io.emit(`device-log-${deviceId}`, logEntry);
-                
+
                 console.log('📤 [Backend] Sending success callback to frontend with sessionId:', data.sessionId);
                 callback({ success: true, sessionId: data.sessionId });
             } else {
@@ -559,9 +552,9 @@ io.on('connection', (socket) => {
                     deviceIP: deviceData.deviceIP,
                     pythonBackendUrl: PYTHON_BACKEND_URL
                 });
-                callback({ 
-                    success: false, 
-                    error: `Python backend error (${response.status}): ${errorText || response.statusText}` 
+                callback({
+                    success: false,
+                    error: `Python backend error (${response.status}): ${errorText || response.statusText}`
                 });
             }
         } catch (error) {
@@ -572,7 +565,7 @@ io.on('connection', (socket) => {
                 deviceIP: deviceData?.deviceIP,
                 pythonBackendUrl: PYTHON_BACKEND_URL
             });
-            
+
             let errorMessage = error.message;
             if (error.name === 'AbortError') {
                 errorMessage = `Connection to Python backend timed out.`;
@@ -581,7 +574,7 @@ io.on('connection', (socket) => {
             } else if (error.code === 'ENOTFOUND') {
                 errorMessage = `Python backend host not found: ${PYTHON_BACKEND_URL}`;
             }
-            
+
             callback({ success: false, error: errorMessage });
         }
     });
@@ -593,13 +586,13 @@ io.on('connection', (socket) => {
             const response = await fetch(`${PYTHON_BACKEND_URL}/disconnect/${sessionId}`, {
                 method: 'POST'
             });
-            
+
             if (response.ok) {
                 console.log('✅ Device disconnected via Python backend');
-                
+
                 // Get deviceId before disconnecting
                 const deviceId = sessionToDeviceMap[sessionId];
-                
+
                 // Add disconnect log if deviceId exists
                 if (deviceId && deviceLogs[deviceId]) {
                     const logEntry = {
@@ -609,21 +602,21 @@ io.on('connection', (socket) => {
                         type: 'info',
                         userId: null
                     };
-                    
+
                     deviceLogs[deviceId].push(logEntry);
-                    
+
                     // Keep only last MAX_LOGS_PER_DEVICE logs
                     if (deviceLogs[deviceId].length > MAX_LOGS_PER_DEVICE) {
                         deviceLogs[deviceId] = deviceLogs[deviceId].slice(-MAX_LOGS_PER_DEVICE);
                     }
-                    
+
                     // Emit device-specific log event
                     io.emit(`device-log-${deviceId}`, logEntry);
                 }
-                
+
                 // Clean up session mapping
                 delete sessionToDeviceMap[sessionId];
-                
+
                 callback({ success: true });
             } else {
                 const errorText = await response.text();
@@ -640,7 +633,7 @@ io.on('connection', (socket) => {
     socket.on('sendRemoteCommand', async ({ sessionId, type, params }, callback) => {
         try {
             console.log('📥 [Backend] Received sendRemoteCommand event:', { sessionId, type, params });
-            
+
             if (!sessionId) {
                 console.error('❌ [Backend] No sessionId provided in sendRemoteCommand');
                 callback({ success: false, error: 'Session ID is required' });
@@ -649,14 +642,14 @@ io.on('connection', (socket) => {
 
             const commandPayload = { type, ...params };
             console.log('📤 [Backend] Forwarding remote command to Python backend:', { sessionId, type, params, fullPayload: commandPayload, pythonBackendUrl: `${PYTHON_BACKEND_URL}/send/${sessionId}` });
-            
+
             // Get deviceId from sessionId mapping
             const deviceId = sessionToDeviceMap[sessionId];
             console.log('📋 [Backend] DeviceId from mapping:', deviceId);
-            
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-            
+
             let response;
             try {
                 response = await fetch(`${PYTHON_BACKEND_URL}/send/${sessionId}`, {
@@ -677,13 +670,13 @@ io.on('connection', (socket) => {
                 }
                 throw fetchError;
             }
-            
+
             console.log('📡 [Backend] Python backend response status:', response.status, response.statusText);
-            
+
             if (response.ok) {
                 const data = await response.json();
                 console.log('✅ [Backend] Command sent via Python backend:', { command: commandPayload, result: data });
-                
+
                 // Check if Python backend returned an error indicating TV is disconnected
                 if (data.status === 'error' && (data.error?.includes('off') || data.error?.includes('unreachable') || data.error?.includes('not connected'))) {
                     console.warn('⚠️ [Backend] Python backend indicates TV is disconnected:', data.error);
@@ -694,11 +687,11 @@ io.on('connection', (socket) => {
                     });
                     return;
                 }
-                
+
                 // Determine log type and message
                 let logType = 'action';
                 let logMessage = '';
-                
+
                 if (type === 'key' && params?.action) {
                     logMessage = `Button Press: ${params.action.toUpperCase()} - Navigation confirmed`;
                 } else if (type === 'key' && params?.key) {
@@ -709,13 +702,13 @@ io.on('connection', (socket) => {
                 } else {
                     logMessage = `Command sent: ${type} ${params.action || params.key || ''}`;
                 }
-                
+
                 // Add log entry to device logs (only if deviceId is found)
                 if (deviceId) {
                     if (!deviceLogs[deviceId]) {
                         deviceLogs[deviceId] = [];
                     }
-                    
+
                     const logEntry = {
                         id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                         timestamp: new Date().toISOString(),
@@ -723,18 +716,18 @@ io.on('connection', (socket) => {
                         type: logType,
                         userId: socketToDeviceMap[socket.id]?.userId || null
                     };
-                    
+
                     deviceLogs[deviceId].push(logEntry);
-                    
+
                     // Keep only last MAX_LOGS_PER_DEVICE logs
                     if (deviceLogs[deviceId].length > MAX_LOGS_PER_DEVICE) {
                         deviceLogs[deviceId] = deviceLogs[deviceId].slice(-MAX_LOGS_PER_DEVICE);
                     }
-                    
+
                     // Emit device-specific log event (only to users viewing this device)
                     io.emit(`device-log-${deviceId}`, logEntry);
                 }
-                
+
                 // Emit command log to ALL connected clients via Socket.IO (broadcast) - keep for backward compatibility
                 console.log('📤 [Backend] Broadcasting deviceConnectionLog (command) to all clients:', type, params.action);
                 io.emit('deviceConnectionLog', {
@@ -745,7 +738,7 @@ io.on('connection', (socket) => {
                     sessionId: sessionId,
                     timestamp: new Date().toISOString()
                 });
-                
+
                 // Automatically fetch and emit TV logs after command is sent
                 try {
                     // First, get session info to get cameraName
@@ -760,7 +753,7 @@ io.on('connection', (socket) => {
                     } catch (sessionErr) {
                         console.warn('⚠️ [Backend] Could not fetch session for cameraName:', sessionErr.message);
                     }
-                    
+
                     const logsResponse = await fetch(`${PYTHON_BACKEND_URL}/sessions/${sessionId}/logs?max_lines=30&refresh=true`);
                     if (logsResponse.ok) {
                         const logsData = await logsResponse.json();
@@ -780,12 +773,12 @@ io.on('connection', (socket) => {
                 } catch (logError) {
                     console.warn('⚠️ [Backend] Could not fetch logs after command:', logError.message);
                 }
-                
+
                 callback({ success: true, data });
             } else {
                 const errorText = await response.text();
                 console.error('❌ Python backend command failed:', errorText);
-                
+
                 // Emit error log to ALL connected clients via Socket.IO (broadcast)
                 console.log('📤 [Backend] Broadcasting deviceConnectionLog (error) to all clients:', type, params.action);
                 io.emit('deviceConnectionLog', {
@@ -795,7 +788,7 @@ io.on('connection', (socket) => {
                     sessionId: sessionId,
                     timestamp: new Date().toISOString()
                 });
-                
+
                 callback({ success: false, error: 'Failed to send command' });
             }
         } catch (error) {
@@ -808,20 +801,20 @@ io.on('connection', (socket) => {
     socket.on('getDeviceLogs', async ({ sessionId, cameraName, maxLines, refresh }, callback) => {
         try {
             let logSessionId = sessionId;
-            
+
             // If no sessionId but cameraName provided, try to find active session
             if (!logSessionId && cameraName) {
                 console.log('🔍 [Backend] No sessionId provided, checking for active session with cameraName:', cameraName);
-                
+
                 try {
                     // Query Python backend for sessions by tv_name (cameraName)
                     const sessionsResponse = await fetch(`${PYTHON_BACKEND_URL}/sessions?tv_name=${encodeURIComponent(cameraName)}`);
                     console.log('📡 [Backend] Querying sessions endpoint:', `${PYTHON_BACKEND_URL}/sessions?tv_name=${encodeURIComponent(cameraName)}`);
-                    
+
                     if (sessionsResponse.ok) {
                         const sessions = await sessionsResponse.json();
                         console.log('📥 [Backend] Sessions response:', sessions);
-                        
+
                         if (sessions && sessions.sessions && sessions.sessions.length > 0 && sessions.sessions[0].sessionId) {
                             logSessionId = sessions.sessions[0].sessionId;
                             console.log('✅ [Backend] Found active session for cameraName:', cameraName, 'sessionId:', logSessionId);
@@ -838,22 +831,22 @@ io.on('connection', (socket) => {
                     console.error('❌ [Backend] Error stack:', err.stack);
                 }
             }
-            
+
             if (!logSessionId) {
                 console.error('❌ [Backend] No sessionId found. cameraName provided:', cameraName);
                 console.error('❌ [Backend] Cannot fetch logs without sessionId');
-                callback({ 
-                    success: false, 
-                    error: `No active session found for device: ${cameraName || 'unknown'}. Please connect to the device first.` 
+                callback({
+                    success: false,
+                    error: `No active session found for device: ${cameraName || 'unknown'}. Please connect to the device first.`
                 });
                 return;
             }
-            
+
             console.log('Fetching device logs from Python backend:', { sessionId: logSessionId, cameraName, maxLines, refresh });
             const response = await fetch(
                 `${PYTHON_BACKEND_URL}/sessions/${logSessionId}/logs?max_lines=${maxLines || 100}&refresh=${refresh || false}`
             );
-            
+
             if (response.ok) {
                 const data = await response.json();
                 console.log('✅ Logs fetched via Python backend:', {
@@ -862,7 +855,7 @@ io.on('connection', (socket) => {
                     logLength: data.logs ? data.logs.length : 0,
                     logCount: data.log_count || 0
                 });
-                
+
                 // Also emit logs directly to ALL connected clients via Socket.IO (broadcast)
                 if (data.success && data.logs) {
                     console.log('📤 [Backend] Broadcasting TV logs via Socket.IO to all clients:', {
@@ -870,7 +863,7 @@ io.on('connection', (socket) => {
                         logCount: data.log_count || 0,
                         cameraName: cameraName
                     });
-                    
+
                     io.emit('deviceConnectionLog', {
                         type: 'tv_logs',
                         message: '📺 TV Device Logs:',
@@ -886,7 +879,7 @@ io.on('connection', (socket) => {
                         logCount: data.log_count || 0
                     });
                 }
-                
+
                 callback({ success: true, ...data });
             } else {
                 const errorText = await response.text();
@@ -913,7 +906,7 @@ io.on('connection', (socket) => {
             if (isStreamer) {
                 // 1. Handle Streamer Disconnect
                 console.log(`🛑 Streamer disconnected from device ${deviceId}...`);
-                
+
                 // Cancel any pending cleanup for this device
                 if (pendingCleanups[deviceId]) {
                     clearTimeout(pendingCleanups[deviceId]);
@@ -922,8 +915,8 @@ io.on('connection', (socket) => {
 
                 // Remove from room streamers
                 if (roomStreamers[deviceId] && roomStreamers[deviceId].socketId === socket.id) {
-                delete roomStreamers[deviceId];
-                io.to(deviceId).emit('streamer-disconnected');
+                    delete roomStreamers[deviceId];
+                    io.to(deviceId).emit('streamer-disconnected');
                 }
 
                 // DELAY cleanup to allow for refresh/reconnection
@@ -980,7 +973,7 @@ io.on('connection', (socket) => {
             } else if (isViewer) {
                 // 2. Handle Viewer Disconnect - Clear viewer AND userId/username
                 console.log(`👁️ Viewer disconnected from device ${deviceId}. Clearing viewer and user info...`);
-                
+
                 try {
                     const device = await Device.findByPk(deviceId);
                     if (device && device.connectedViewerId === userId) {
@@ -1019,7 +1012,7 @@ io.on('connection', (socket) => {
         // If no mapping found, try fallback cleanup (for backwards compatibility)
         if (connections.length === 0) {
             console.log(`⚠️ No mapping found for socket ${socket.id}, attempting fallback cleanup...`);
-            
+
             // Check if this was a streamer (fallback)
             try {
                 const device = await Device.findOne({ where: { streamerSocketId: socket.id } });
@@ -1035,20 +1028,20 @@ io.on('connection', (socket) => {
                         sessionTime: null,
                         connectedViewerId: null,
                         connectedViewerName: null
-                        }, { where: { id: device.id } });
+                    }, { where: { id: device.id } });
 
-                        io.emit('device-status-update', {
-                            deviceId: device.id,
-                            status: 'offline',
-                            isStreaming: false,
-                            streamerSocketId: null,
-                            username: null,
-                            connectedViewerId: null,
-                            connectedViewerName: null,
-                            webrtcConnected: false
-                        });
+                    io.emit('device-status-update', {
+                        deviceId: device.id,
+                        status: 'offline',
+                        isStreaming: false,
+                        streamerSocketId: null,
+                        username: null,
+                        connectedViewerId: null,
+                        connectedViewerName: null,
+                        webrtcConnected: false
+                    });
                 }
-                    } catch (err) {
+            } catch (err) {
                 console.error(`❌ Fallback cleanup error:`, err);
             }
         }
@@ -1065,16 +1058,11 @@ app.use((req, res, next) => {
     next();
 });
 
-// app.use(cors({
-//     origin: 'http://localhost:3000',
-//     credentials: true,
-//     allowedHeaders: ['Content-Type', 'Authorization', 'CSRF-Token', 'X-XSRF-TOKEN', 'X-Requested-With'],
-//     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-// }));
-
 app.use(cors({
-    origin: true,
-    credentials: true
+    origin: (origin, callback) => callback(null, true),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'CSRF-Token', 'X-XSRF-TOKEN', 'X-Requested-With']
 }));
 
 app.use(express.json());
