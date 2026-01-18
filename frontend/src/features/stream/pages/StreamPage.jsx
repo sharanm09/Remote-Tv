@@ -22,7 +22,7 @@ const StreamPage = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/devices', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -56,7 +56,7 @@ const StreamPage = () => {
 
     // Real-time Device Status Updates
     useEffect(() => {
-        const socket = io('http://localhost:5000');
+        const socket = io(import.meta.env.VITE_SOCKET_URL);
 
         socket.on('device-status-update', (updatedDevice) => {
             console.log('⚡ [StreamPage] Real-time update received:', updatedDevice);
@@ -76,7 +76,7 @@ const StreamPage = () => {
 
     const handleLogout = async () => {
         try {
-            await fetch('http://localhost:5000/api/auth/logout', {
+            await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

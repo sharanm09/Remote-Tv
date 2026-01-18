@@ -19,7 +19,7 @@ const EditRoleModal = ({ isOpen, onClose, role, onRoleUpdated }) => {
         setError('');
 
         try {
-            const response = await fetch(`http://localhost:5000/api/roles/${role.id}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles/${role.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json'

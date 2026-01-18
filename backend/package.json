@@ -6,9 +6,6 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "migrate:add-viewer-columns": "node src/scripts/add_connected_viewer_columns.js",
-    "migrate:add-webrtc-column": "node src/scripts/add_webrtc_connected_column.js",
-    "migrate:clear-user-info": "node src/scripts/clear_user_id_username.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

@@ -58,7 +58,7 @@ const AdminDashboard = ({ devices, loading, pagination, filters, setFilters, fet
                 return;
             }
 
-            const response = await fetch(`http://localhost:5000/api/devices/${deviceId}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -88,7 +88,7 @@ const AdminDashboard = ({ devices, loading, pagination, filters, setFilters, fet
                 return;
             }
 
-            const response = await fetch(`http://localhost:5000/api/devices/${deviceId}/stop-streaming`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/stop-streaming`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -118,7 +118,7 @@ const AdminDashboard = ({ devices, loading, pagination, filters, setFilters, fet
                 return;
             }
 
-            const response = await fetch(`http://localhost:5000/api/devices/${deviceId}/disconnect`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/disconnect`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

@@ -48,7 +48,7 @@ const UserRoleManagement = () => {
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:5000/api/users', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users`, {
                 credentials: 'include'
             });
             const data = await response.json();
@@ -64,7 +64,7 @@ const UserRoleManagement = () => {
     const fetchRoles = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:5000/api/roles', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles`, {
                 credentials: 'include'
             });
             const data = await response.json();
@@ -123,7 +123,7 @@ const UserRoleManagement = () => {
 
     const toggleUserStatus = async (userId) => {
         try {
-            const response = await fetch(`http://localhost:5000/api/users/${userId}/status`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/${userId}/status`, {
                 method: 'PATCH',
                 credentials: 'include'
             });

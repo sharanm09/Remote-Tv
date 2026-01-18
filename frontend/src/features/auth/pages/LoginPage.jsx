@@ -20,11 +20,9 @@ const LoginPage = () => {
         setIsLoading(true);
         setError('');
 
-        const endpoint = '/api/auth/login';
-        const payload = { email, password };
-
         try {
-            const response = await fetch(`http://72.61.240.130:5000${endpoint}`, {
+            const payload = { email, password };
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -65,7 +63,7 @@ const LoginPage = () => {
 
     const handleSocialLogin = (provider) => {
         if (provider === 'google') {
-            window.location.href = 'http://localhost:5000/api/auth/login/google';
+            window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login/google`;
         }
     };
 

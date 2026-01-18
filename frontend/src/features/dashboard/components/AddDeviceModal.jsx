@@ -56,7 +56,7 @@ const AddDeviceModal = ({ isOpen, onClose, onDeviceAdded }) => {
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/devices', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

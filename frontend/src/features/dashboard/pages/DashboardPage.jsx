@@ -61,7 +61,7 @@ const DashboardPage = () => {
                 ...(searchFilters.location && { location: searchFilters.location })
             });
 
-            const response = await fetch(`http://localhost:5000/api/devices?${params}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -97,7 +97,7 @@ const DashboardPage = () => {
 
     // Real-time Updates & Request System using Socket.IO
     useEffect(() => {
-        const socket = io('http://localhost:5000');
+        const socket = io(import.meta.env.VITE_SOCKET_URL);
 
         // 1. Device Status Updates
         socket.on('device-status-update', (updatedDevice) => {
@@ -105,13 +105,13 @@ const DashboardPage = () => {
             setDevices(prevDevices =>
                 prevDevices.map(device =>
                     device.id === updatedDevice.deviceId
-                        ? { 
-                            ...device, 
-                            status: updatedDevice.status !== undefined ? updatedDevice.status : device.status, 
-                            isStreaming: updatedDevice.isStreaming !== undefined ? updatedDevice.isStreaming : device.isStreaming, 
+                        ? {
+                            ...device,
+                            status: updatedDevice.status !== undefined ? updatedDevice.status : device.status,
+                            isStreaming: updatedDevice.isStreaming !== undefined ? updatedDevice.isStreaming : device.isStreaming,
                             userId: updatedDevice.userId !== undefined ? updatedDevice.userId : device.userId,
-                            username: updatedDevice.username !== undefined ? updatedDevice.username : device.username, 
-                            connectedViewerId: updatedDevice.connectedViewerId !== undefined ? updatedDevice.connectedViewerId : device.connectedViewerId, 
+                            username: updatedDevice.username !== undefined ? updatedDevice.username : device.username,
+                            connectedViewerId: updatedDevice.connectedViewerId !== undefined ? updatedDevice.connectedViewerId : device.connectedViewerId,
                             connectedViewerName: updatedDevice.connectedViewerName !== undefined ? updatedDevice.connectedViewerName : device.connectedViewerName,
                             webrtcConnected: updatedDevice.webrtcConnected !== undefined ? updatedDevice.webrtcConnected : device.webrtcConnected,
                             streamerSocketId: updatedDevice.streamerSocketId !== undefined ? updatedDevice.streamerSocketId : device.streamerSocketId
@@ -125,16 +125,16 @@ const DashboardPage = () => {
             // Ensure currentUserId is a string for consistent event name matching
             const currentUserIdStr = String(currentUserId);
             const eventName = `request-received-${currentUserIdStr}`;
-            
+
             console.log(`🔔 Setting up notification listener for event: ${eventName}`);
             console.log(`🔔 Current User ID: ${currentUserIdStr} (type: ${typeof currentUserIdStr})`);
-            
+
             // 2. Incoming Requests (For Owner) - Add to notifications
             socket.on(eventName, (request) => {
                 console.log('🔔 Request Received:', request);
                 console.log('🔔 Event name that triggered:', eventName);
                 setIncomingRequest(request);
-                
+
                 // Add to notifications list
                 const notification = {
                     id: request.requestId || Date.now().toString(),
@@ -148,10 +148,10 @@ const DashboardPage = () => {
                     requestId: request.requestId,
                     deviceId: request.deviceId
                 };
-                
+
                 setNotifications(prev => [notification, ...prev]);
                 console.log('✅ Notification added to list. Total notifications:', notifications.length + 1);
-                
+
                 // Optional: Play sound or shows system notification
                 new Audio('/notification.mp3').play().catch(e => console.log('Audio play failed', e)); // Placeholder
             });
@@ -166,16 +166,16 @@ const DashboardPage = () => {
             // 3. Request Responses (For Requester) - Update notification
             socket.on(`request-response-${currentUserId}`, ({ status, deviceId, reason, requestId }) => {
                 const statusDetails = status === 'approved' ? 'Approved! You can now access the device.' : `Rejected. Reason: ${reason}`;
-                
+
                 // Update notification status
                 if (requestId) {
-                    setNotifications(prev => prev.map(n => 
-                        n.requestId === requestId 
+                    setNotifications(prev => prev.map(n =>
+                        n.requestId === requestId
                             ? { ...n, status, read: true }
                             : n
                     ));
                 }
-                
+
                 if (status === 'approved') {
                     toast.success(statusDetails, { duration: 5000 });
                     fetchDevices(); // Refresh to see updated status (free)
@@ -200,7 +200,7 @@ const DashboardPage = () => {
 
     const handleLogout = async () => {
         try {
-            await fetch('http://localhost:5000/api/auth/logout', {
+            await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -229,7 +229,7 @@ const DashboardPage = () => {
     const handleRequestAccess = async (device, note) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/requests/send', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/requests/send`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -257,7 +257,7 @@ const DashboardPage = () => {
     const handleRespondRequest = async (requestId, status, reason = null) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/requests/respond', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/requests/respond`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -269,14 +269,14 @@ const DashboardPage = () => {
             if (response.ok) {
                 setIncomingRequest(null);
                 setRejectModal({ isOpen: false, notification: null });
-                
+
                 // Update notification status
-                setNotifications(prev => prev.map(n => 
-                    n.requestId === requestId 
+                setNotifications(prev => prev.map(n =>
+                    n.requestId === requestId
                         ? { ...n, status, read: true }
                         : n
                 ));
-                
+
                 if (status === 'approved') {
                     toast.success('Request approved. User connection cleared. Stream continues.');
                     // Refresh devices to show updated status (userId/username cleared)
@@ -285,7 +285,7 @@ const DashboardPage = () => {
                     // Stream continues running, only userId/username are cleared
                 } else {
                     toast.success('Rejection message sent to requester.');
-                fetchDevices();
+                    fetchDevices();
                 }
             } else {
                 const data = await response.json();
@@ -298,7 +298,7 @@ const DashboardPage = () => {
     };
 
     const handleMarkNotificationAsRead = (notificationId) => {
-        setNotifications(prev => prev.map(n => 
+        setNotifications(prev => prev.map(n =>
             n.id === notificationId ? { ...n, read: true } : n
         ));
     };
@@ -379,7 +379,7 @@ const DashboardPage = () => {
                     handleRespondRequest(id, 'rejected', reason);
                 }}
             />
-            
+
             <RejectModal
                 isOpen={rejectModal.isOpen}
                 onClose={() => setRejectModal({ isOpen: false, notification: null })}

@@ -33,7 +33,7 @@ const StreamingPage = () => {
     const fetchDeviceDetails = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:5000/api/devices/${deviceId}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -48,7 +48,7 @@ const StreamingPage = () => {
     const updateDeviceStatus = async (status) => {
         try {
             const token = localStorage.getItem('token');
-            await fetch(`http://localhost:5000/api/devices/${deviceId}`, {
+            await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -84,7 +84,7 @@ const StreamingPage = () => {
         checkPermissionsAndGetCameras();
 
         const userId = localStorage.getItem('userId');
-        socketRef.current = io('http://localhost:5000');
+        socketRef.current = io(import.meta.env.VITE_SOCKET_URL);
         socketRef.current.emit('join-stream', { deviceId, isStreamer: true, streamId: userId, userId: userId });
 
         // Handle browser close/tab close - cleanup immediately
@@ -93,12 +93,12 @@ const StreamingPage = () => {
             // Check if this is a refresh (navigation) vs actual close
             // If it's a refresh, the page will reload and reconnect, so don't cleanup
             const isRefresh = e.persisted || (performance.navigation && performance.navigation.type === 1);
-            
+
             if (isRefresh) {
                 console.log('🔄 Page refresh detected - skipping cleanup, will reconnect');
                 return; // Don't cleanup on refresh
             }
-            
+
             console.log('🛑 Browser closing - cleaning up stream...');
             if (isStreamingRef.current && socketRef.current) {
                 // Try to send cleanup signal (may not always work on browser close)
@@ -159,14 +159,14 @@ const StreamingPage = () => {
                             socketRef.current.emit('streamer-stopped', { deviceId });
                         }
                     }
-                    
+
                     // Stop media tracks
                     if (activeStream) {
                         stopMediaTracks(activeStream);
                         setActiveStream(null);
                         activeStreamRef.current = null;
                     }
-                    
+
                     // Close all peer connections
                     Object.values(peerConnections.current).forEach(pc => {
                         try {
@@ -176,7 +176,7 @@ const StreamingPage = () => {
                         }
                     });
                     peerConnections.current = {};
-                    
+
                     // Navigate to dashboard
                     navigate('/dashboard');
                 }
@@ -192,7 +192,7 @@ const StreamingPage = () => {
                     duration: 5000,
                     position: 'top-center'
                 });
-                
+
                 // Stop streaming
                 if (isStreamingRef.current) {
                     setIsStreaming(false);
@@ -202,14 +202,14 @@ const StreamingPage = () => {
                         socketRef.current.emit('streamer-stopped', { deviceId });
                     }
                 }
-                
+
                 // Stop media tracks
                 if (activeStream) {
                     stopMediaTracks(activeStream);
                     setActiveStream(null);
                     activeStreamRef.current = null;
                 }
-                
+
                 // Close all peer connections
                 Object.values(peerConnections.current).forEach(pc => {
                     try {
@@ -219,7 +219,7 @@ const StreamingPage = () => {
                     }
                 });
                 peerConnections.current = {};
-                
+
                 // Navigate to dashboard
                 setTimeout(() => {
                     navigate('/dashboard');
@@ -236,14 +236,14 @@ const StreamingPage = () => {
             // BUT: If this is a refresh, the backend will handle reconnection
             // So we add a small delay to allow reconnection before cleanup
             console.log('🧹 Cleaning up streaming page...');
-            
+
             // Remove event listeners
             window.removeEventListener('beforeunload', handleBeforeUnload);
             window.removeEventListener('pagehide', handleBeforeUnload);
-            
+
             // Check if this might be a refresh (navigation)
             const isLikelyRefresh = performance.navigation.type === 1; // TYPE_RELOAD
-            
+
             if (isLikelyRefresh) {
                 console.log('🔄 Likely refresh detected - delaying cleanup to allow reconnection...');
                 // Give backend time to detect reconnection before cleaning up
@@ -282,7 +282,7 @@ const StreamingPage = () => {
                     stopMediaTracks(activeStream);
                 }
                 if (isStreamingRef.current) {
-            updateDeviceStatus('offline');
+                    updateDeviceStatus('offline');
                     if (socketRef.current) {
                         socketRef.current.emit('streamer-stopped', { deviceId });
                     }
@@ -415,14 +415,14 @@ const StreamingPage = () => {
             // Wait for actual stream to be active before marking as live
             setTimeout(async () => {
                 if (activeStreamRef.current) {
-                setIsStreaming(true);
-                isStreamingRef.current = true;
-                setStreamStatus('active');
-                console.log('📡 Emitting streamer-ready signal to socket');
+                    setIsStreaming(true);
+                    isStreamingRef.current = true;
+                    setStreamStatus('active');
+                    console.log('📡 Emitting streamer-ready signal to socket');
                     // Don't set status to 'live' here - let backend handle it when streamer-ready is received
                     // Backend will set status to 'live' only after confirming streaming is active
-                if (socketRef.current) {
-                    const userId = localStorage.getItem('userId');
+                    if (socketRef.current) {
+                        const userId = localStorage.getItem('userId');
                         socketRef.current.emit('streamer-ready', { deviceId, streamId: userId, userId: userId });
                     }
                 } else {

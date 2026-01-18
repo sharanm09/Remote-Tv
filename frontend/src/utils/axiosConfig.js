@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://72.61.240.130:5000/api',
+    baseURL: import.meta.env.VITE_API_BASE_URL,
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ axiosInstance.interceptors.response.use(
             try {
                 // Call refresh token endpoint with credentials (cookie)
                 const { data } = await axios.post(
-                    `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/auth/refresh-token`,
+                    `${import.meta.env.VITE_API_BASE_URL}/auth/refresh-token`,
                     {},
                     { withCredentials: true }
                 );

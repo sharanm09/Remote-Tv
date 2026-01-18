@@ -30,7 +30,7 @@ const EditDeviceModal = ({ isOpen, onClose, onDeviceUpdated, device }) => {
             const specs = device.specifications || {};
             const backendUrl = specs.backendUrl || BACKEND_OPTIONS[0].url;
             const matchingBackend = BACKEND_OPTIONS.find(opt => opt.url === backendUrl) || BACKEND_OPTIONS[BACKEND_OPTIONS.length - 1];
-            
+
             setFormData({
                 name: device.name || '',
                 model: device.model || '',
@@ -76,7 +76,7 @@ const EditDeviceModal = ({ isOpen, onClose, onDeviceUpdated, device }) => {
                 return;
             }
 
-            const response = await fetch(`http://localhost:5000/api/devices/${device.id}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${device.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,

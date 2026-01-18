@@ -30,7 +30,7 @@ const EditUserModal = ({ isOpen, onClose, user, onUserUpdated }) => {
 
     const fetchRoles = async () => {
         try {
-            const response = await fetch('http://localhost:5000/api/roles', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles`, {
                 credentials: 'include'
             });
             const data = await response.json();
@@ -46,7 +46,7 @@ const EditUserModal = ({ isOpen, onClose, user, onUserUpdated }) => {
         setError('');
 
         try {
-            const response = await fetch(`http://localhost:5000/api/users/${user.id}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/${user.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json'

@@ -16,7 +16,7 @@ const { Server } = require('socket.io');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL;
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {

@@ -13,7 +13,7 @@ router.get('/login/google',
 // 2. Google Callback
 router.get('/google/callback',
     passport.authenticate('google', {
-        failureRedirect: process.env.FRONTEND_URL || 'http://localhost:3000/login',
+        failureRedirect: `${process.env.FRONTEND_URL}/login`,
         session: false
     }),
     authController.googleLoginCallback

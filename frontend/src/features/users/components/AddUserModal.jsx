@@ -23,7 +23,7 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }) => {
     const fetchRoles = async () => {
         setIsFetchingRoles(true);
         try {
-            const response = await fetch('http://localhost:5000/api/roles');
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles`);
             if (response.ok) {
                 const data = await response.json();
                 setRoles(data.roles);
@@ -44,7 +44,7 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }) => {
         setError('');
 
         try {
-            const response = await fetch('http://localhost:5000/api/users', {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

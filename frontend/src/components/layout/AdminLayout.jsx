@@ -25,7 +25,7 @@ const AdminLayout = ({ children }) => {
 
     const handleLogout = async () => {
         try {
-            await fetch('http://localhost:5000/api/auth/logout', {
+            await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -141,8 +141,8 @@ const AdminLayout = ({ children }) => {
                             <button
                                 onClick={() => navigate('/dashboard')}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/dashboard')
-                                        ? 'bg-blue-50 text-blue-600'
-                                        : 'text-gray-700 hover:bg-gray-50'
+                                    ? 'bg-blue-50 text-blue-600'
+                                    : 'text-gray-700 hover:bg-gray-50'
                                     }`}
                             >
                                 Dashboard
@@ -150,8 +150,8 @@ const AdminLayout = ({ children }) => {
                             <button
                                 onClick={() => navigate('/manage')}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive('/manage')
-                                        ? 'bg-blue-50 text-blue-600'
-                                        : 'text-gray-700 hover:bg-gray-50'
+                                    ? 'bg-blue-50 text-blue-600'
+                                    : 'text-gray-700 hover:bg-gray-50'
                                     }`}
                             >
                                 Users & Roles
