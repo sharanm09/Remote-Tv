@@ -3,8 +3,11 @@ const cors = require('cors');
 const passport = require('passport');
 const crypto = require('crypto');
 const path = require('path');
-// require('dotenv').config({ path: path.join(__dirname, '../.env') });
-require('dotenv').config();
+// Load dotenv ONLY when NOT running on Cloud Run
+// K_SERVICE is automatically set by Cloud Run
+if (!process.env.K_SERVICE) {
+  require('dotenv').config({ path: path.join(__dirname, '../.env') });
+}
 const { sequelize, initializeDatabase } = require('./config/database');
 const seedDatabase = require('./config/seed');
 const authRoutes = require('./features/auth/auth.routes');
@@ -1121,7 +1124,9 @@ server.listen(PORT, () => {
 // ---- CONNECT DB IN BACKGROUND ----
 (async () => {
     try {
+        console.log('🔄 Starting database initialization...');
         await initializeDatabase();
+        console.log('🔄 Database initialized, now syncing Sequelize...');
         await sequelize.sync({ alter: false });
         console.log('✅ Database connected and synced');
 
@@ -1129,6 +1134,15 @@ server.listen(PORT, () => {
         console.log('🌱 Database seeded');
     } catch (err) {
         console.error('❌ Database init failed (server still running):', err.message);
+        if (err.original) {
+            console.error('   Original error:', {
+                code: err.original.code,
+                errno: err.original.errno,
+                address: err.original.address,
+                port: err.original.port,
+                message: err.original.message
+            });
+        }
     }
 })();
 
