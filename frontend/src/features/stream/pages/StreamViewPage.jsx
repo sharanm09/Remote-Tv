@@ -48,7 +48,10 @@ const StreamViewPage = () => {
                 return;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`, {
+            const url = `${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`;
+            addActionLog(`Fetching device details from: ${url}`, 'info');
+
+            const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -793,14 +796,26 @@ const StreamViewPage = () => {
         if (!sessionId) return false;
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_PYTHON_BACKEND_URL}/sessions/${sessionId}/status`);
+            const url = `${import.meta.env.VITE_PYTHON_BACKEND_URL}/sessions/${sessionId}/status`;
+            // Log full API URL to UI as requested
+            addActionLog(`Checking session status API: ${url}`, 'info');
+            // Only log this if debugging is needed, otherwise it might be too noisy. 
+            // But since user asked for "which api it is calling", we will log it on failure or initial check.
+            console.log(`🔍 [Frontend] Checking status at: ${url}`);
+
+            const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
                 const isConnected = data.connected === true && data.status === 'connected';
                 console.log('📊 [Frontend] Session status check:', { sessionId, isConnected, status: data.status });
+                if (isConnected) {
+                    // Only log on change or initial connection to avoid spamming, but for now log verbose for debugging
+                    // addActionLog(`TV verification: Connected (Status: ${data.status})`, 'success'); 
+                }
                 return isConnected;
             } else {
                 console.warn('⚠️ [Frontend] Session status check failed:', response.status);
+                addActionLog(`TV verification failed: Session status check returned ${response.status}`, 'warning');
                 return false;
             }
         } catch (error) {
@@ -855,12 +870,17 @@ const StreamViewPage = () => {
         }
 
         return new Promise((resolve) => {
+            addActionLog(`Initiating connection to ${deviceData.deviceType} at ${deviceData.deviceIP}...`, 'info');
             console.log('🔗 [Frontend] Connecting to device for remote control:', deviceData);
+
             socketRef.current.emit('connectDevice', { deviceData }, async (response) => {
                 console.log('📥 [Frontend] Received connection response:', response);
+
                 if (response && response.success && response.sessionId) {
                     const sessionId = response.sessionId;
                     console.log('✅ [Frontend] Connected to device for remote control. SessionId:', sessionId);
+                    addActionLog(`Socket connection successful. Session ID: ${sessionId}`, 'success');
+                    addActionLog('Verifying TV status...', 'info');
 
                     // Verify TV is actually connected before marking as connected
                     const isConnected = await checkSessionStatus(sessionId);
@@ -868,13 +888,13 @@ const StreamViewPage = () => {
                         setRemoteSessionId(sessionId);
                         setIsRemoteConnected(true);
                         const userName = localStorage.getItem('userName') || 'User';
-                        addActionLog(`Session Started - User: ${userName} connected`, 'info');
+                        addActionLog(`Session Verified - User: ${userName} connected to TV`, 'success');
                         resolve(true);
                     } else {
                         console.warn('⚠️ [Frontend] Connection established but TV is not reachable');
                         setRemoteSessionId(sessionId); // Keep sessionId for retry
                         setIsRemoteConnected(false);
-                        addActionLog('TV is off or unreachable. Please turn on the TV.', 'error');
+                        addActionLog('Connection established but TV is off or unreachable. Please turn on the TV.', 'warning');
                         resolve(false);
                     }
                 } else {

@@ -1,4 +1,5 @@
 const express = require('express');
+const fetch = require('node-fetch');
 const cors = require('cors');
 const passport = require('passport');
 const crypto = require('crypto');
@@ -6,7 +7,7 @@ const path = require('path');
 // Load dotenv ONLY when NOT running on Cloud Run
 // K_SERVICE is automatically set by Cloud Run
 if (!process.env.K_SERVICE) {
-  require('dotenv').config({ path: path.join(__dirname, '../.env') });
+    require('dotenv').config({ path: path.join(__dirname, '../.env') });
 }
 const { sequelize, initializeDatabase } = require('./config/database');
 const seedDatabase = require('./config/seed');
@@ -440,7 +441,9 @@ io.on('connection', (socket) => {
     socket.on('checkExistingSession', async ({ deviceData }, callback) => {
         try {
             console.log('🔍 [Backend] Checking existing session for device:', deviceData);
-            const response = await fetch(`${PYTHON_BACKEND_URL}/sessions/check/${deviceData.deviceIP}?device_type=${deviceData.deviceType}`);
+            const url = `${PYTHON_BACKEND_URL}/sessions/check/${deviceData.deviceIP}?device_type=${deviceData.deviceType}`;
+            console.log(`🔍 [Backend] Checking existing session. API: ${url}`);
+            const response = await fetch(url);
 
             if (response.ok) {
                 const data = await response.json();
@@ -461,14 +464,15 @@ io.on('connection', (socket) => {
     // Connect to device for remote control
     socket.on('connectDevice', async ({ deviceData }, callback) => {
         try {
-            console.log(`🔗 [Backend] Forwarding device connection request to Python backend for ${deviceData.cameraName}:`, {
-                deviceIP: deviceData.deviceIP,
-                deviceType: deviceData.deviceType,
-                cameraName: deviceData.cameraName,
-                pythonBackendUrl: PYTHON_BACKEND_URL
+            const url = `${PYTHON_BACKEND_URL}/sessions`;
+            console.log(`🔗 [Backend] Connecting to Python backend. API: ${url}`);
+            console.log(`🔗 [Backend] Payload:`, {
+                ip: deviceData.deviceIP,
+                device_type: deviceData.deviceType,
+                tv_name: deviceData.cameraName
             });
 
-            const response = await fetch(`${PYTHON_BACKEND_URL}/sessions`, {
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -645,7 +649,9 @@ io.on('connection', (socket) => {
             }
 
             const commandPayload = { type, ...params };
-            console.log('📤 [Backend] Forwarding remote command to Python backend:', { sessionId, type, params, fullPayload: commandPayload, pythonBackendUrl: `${PYTHON_BACKEND_URL}/send/${sessionId}` });
+            const url = `${PYTHON_BACKEND_URL}/send/${sessionId}`;
+            console.log(`📤 [Backend] Sending remote command. API: ${url}`);
+            console.log(`📤 [Backend] Payload:`, commandPayload);
 
             // Get deviceId from sessionId mapping
             const deviceId = sessionToDeviceMap[sessionId];
