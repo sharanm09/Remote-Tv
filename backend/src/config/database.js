@@ -54,11 +54,11 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 }
 
-const dbName = process.env.DB_NAME || 'remotetv';
-const dbUser = process.env.DB_USER || 'root';
-const dbPassword = process.env.DB_PASSWORD || 'radhe123';
-const dbHost = process.env.DB_HOST || 'localhost';
-const dbPort = process.env.DB_PORT || 3306;
+const dbName = process.env.DB_NAME;
+const dbUser = process.env.DB_USER;
+const dbPassword = process.env.DB_PASSWORD;
+const dbHost = process.env.DB_HOST;
+const dbPort = process.env.DB_PORT;
 const dbSocket = process.env.DB_SOCKET; // ✅ NEW
 
 // ---------- CREATE DB IF NOT EXISTS ----------
