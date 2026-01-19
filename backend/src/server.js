@@ -3,7 +3,8 @@ const cors = require('cors');
 const passport = require('passport');
 const crypto = require('crypto');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
+// require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config();
 const { sequelize, initializeDatabase } = require('./config/database');
 const seedDatabase = require('./config/seed');
 const authRoutes = require('./features/auth/auth.routes');
@@ -1092,23 +1093,43 @@ app.get('/', (req, res) => {
 });
 
 // Database Connection & Server Start
-const startServer = async () => {
+// const startServer = async () => {
+//     try {
+//         await initializeDatabase();
+//         // Use sync without alter to avoid "Too many keys" error on existing tables
+//         await sequelize.sync({ alter: false });
+//         console.log('✅ Database connected and synced');
+
+//         // Seed database
+//         await seedDatabase();
+
+//         server.listen(PORT, () => {
+//             console.log(`🚀 Server running on port ${PORT}`);
+//         });
+//     } catch (err) {
+//         console.error('❌ Database connection failed:', err);
+//     }
+// };
+
+// startServer();
+
+// ---- START SERVER IMMEDIATELY (REQUIRED FOR CLOUD RUN) ----
+server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});
+
+// ---- CONNECT DB IN BACKGROUND ----
+(async () => {
     try {
         await initializeDatabase();
-        // Use sync without alter to avoid "Too many keys" error on existing tables
         await sequelize.sync({ alter: false });
         console.log('✅ Database connected and synced');
 
-        // Seed database
         await seedDatabase();
-
-        server.listen(PORT, () => {
-            console.log(`🚀 Server running on port ${PORT}`);
-        });
+        console.log('🌱 Database seeded');
     } catch (err) {
-        console.error('❌ Database connection failed:', err);
+        console.error('❌ Database init failed (server still running):', err.message);
     }
-};
+})();
 
-startServer();
 
