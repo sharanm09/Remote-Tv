@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, SOCKET_URL } from '../../../config/api';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client'; // Import socket.io-client
 import StreamerDashboard from '../../dashboard/pages/StreamerDashboard';
@@ -22,7 +23,7 @@ const StreamPage = () => {
                 return;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices`, {
+            const response = await fetch(`${API_BASE_URL}/devices`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -56,7 +57,7 @@ const StreamPage = () => {
 
     // Real-time Device Status Updates
     useEffect(() => {
-        const socket = io(import.meta.env.VITE_SOCKET_URL);
+        const socket = io(SOCKET_URL);
 
         socket.on('device-status-update', (updatedDevice) => {
             console.log('⚡ [StreamPage] Real-time update received:', updatedDevice);
@@ -76,7 +77,7 @@ const StreamPage = () => {
 
     const handleLogout = async () => {
         try {
-            await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
+            await fetch(`${API_BASE_URL}/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL,
+    baseURL: API_BASE_URL,
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
@@ -57,8 +58,9 @@ axiosInstance.interceptors.response.use(
 
             try {
                 // Call refresh token endpoint with credentials (cookie)
+                console.log('🔐 [Axios] Refreshing token:', `${API_BASE_URL}/auth/refresh-token`);
                 const { data } = await axios.post(
-                    `${import.meta.env.VITE_API_BASE_URL}/auth/refresh-token`,
+                    `${API_BASE_URL}/auth/refresh-token`,
                     {},
                     { withCredentials: true }
                 );

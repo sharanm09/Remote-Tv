@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 import { Search, Filter, Plus, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import AdminLayout from '../../../components/layout/AdminLayout';
 import DeviceCard from '../components/DeviceCard';
@@ -58,7 +59,7 @@ const AdminDashboard = ({ devices, loading, pagination, filters, setFilters, fet
                 return;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`, {
+            const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -88,7 +89,7 @@ const AdminDashboard = ({ devices, loading, pagination, filters, setFilters, fet
                 return;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/stop-streaming`, {
+            const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/stop-streaming`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -118,7 +119,7 @@ const AdminDashboard = ({ devices, loading, pagination, filters, setFilters, fet
                 return;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/disconnect`, {
+            const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/disconnect`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

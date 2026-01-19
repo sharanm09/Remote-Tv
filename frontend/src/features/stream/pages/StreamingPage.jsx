@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL, SOCKET_URL } from '../../../config/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Monitor, RefreshCw, Cast, Video, VideoOff } from 'lucide-react';
 import { io } from 'socket.io-client';
@@ -33,7 +34,7 @@ const StreamingPage = () => {
     const fetchDeviceDetails = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`, {
+            const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -48,7 +49,7 @@ const StreamingPage = () => {
     const updateDeviceStatus = async (status) => {
         try {
             const token = localStorage.getItem('token');
-            await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`, {
+            await fetch(`${API_BASE_URL}/devices/${deviceId}`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -84,7 +85,8 @@ const StreamingPage = () => {
         checkPermissionsAndGetCameras();
 
         const userId = localStorage.getItem('userId');
-        socketRef.current = io(import.meta.env.VITE_SOCKET_URL);
+        console.log('🔌 [Socket] Connecting to:', SOCKET_URL);
+        socketRef.current = io(SOCKET_URL);
         socketRef.current.emit('join-stream', { deviceId, isStreamer: true, streamId: userId, userId: userId });
 
         // Handle browser close/tab close - cleanup immediately

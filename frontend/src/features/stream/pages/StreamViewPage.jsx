@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL, SOCKET_URL, PYTHON_BACKEND_URL } from '../../../config/api';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft, RefreshCw, Volume2, Volume1, VolumeX, Camera, Video as VideoIcon, X, RotateCcw, Bell
@@ -48,7 +49,7 @@ const StreamViewPage = () => {
                 return;
             }
 
-            const url = `${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}`;
+            const url = `${API_BASE_URL}/devices/${deviceId}`;
             addActionLog(`Fetching device details from: ${url}`, 'info');
 
             const response = await fetch(url, {
@@ -104,7 +105,8 @@ const StreamViewPage = () => {
         if (socketRef.current) {
             socketRef.current.disconnect();
         }
-        socketRef.current = io(import.meta.env.VITE_SOCKET_URL);
+        console.log('🔌 [Socket] Connecting to:', SOCKET_URL);
+        socketRef.current = io(SOCKET_URL);
 
         // Wait for socket to connect before emitting
         socketRef.current.on('connect', () => {
@@ -405,7 +407,7 @@ const StreamViewPage = () => {
                             try {
                                 const token = localStorage.getItem('token');
                                 if (token) {
-                                    await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
+                                    await fetch(`${API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
                                         method: 'POST',
                                         headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -452,7 +454,7 @@ const StreamViewPage = () => {
                         try {
                             const token = localStorage.getItem('token');
                             if (token) {
-                                await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
+                                await fetch(`${API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
                                     method: 'POST',
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
@@ -533,7 +535,7 @@ const StreamViewPage = () => {
             const token = localStorage.getItem('token');
             if (token) {
                 // Use fetch with keepalive for reliable cleanup on browser close
-                fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
+                fetch(`${API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -544,7 +546,7 @@ const StreamViewPage = () => {
                 }).catch(err => console.error('Error clearing viewer on close:', err));
             } else {
                 // Try without auth (for sendBeacon fallback)
-                fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
+                fetch(`${API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -574,7 +576,7 @@ const StreamViewPage = () => {
                 try {
                     const token = localStorage.getItem('token');
                     if (token) {
-                        await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
+                        await fetch(`${API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
                             method: 'POST',
                             headers: {
                                 'Authorization': `Bearer ${token}`,
@@ -734,7 +736,7 @@ const StreamViewPage = () => {
     const handleApproveRequest = async (notification) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/requests/respond`, {
+            const response = await fetch(`${API_BASE_URL}/requests/respond`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -756,7 +758,7 @@ const StreamViewPage = () => {
     const handleRejectRequest = async (notification) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/requests/respond`, {
+            const response = await fetch(`${API_BASE_URL}/requests/respond`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -796,7 +798,7 @@ const StreamViewPage = () => {
         if (!sessionId) return false;
 
         try {
-            const url = `${import.meta.env.VITE_PYTHON_BACKEND_URL}/sessions/${sessionId}/status`;
+            const url = `${PYTHON_BACKEND_URL}/sessions/${sessionId}/status`;
             // Log full API URL to UI as requested
             addActionLog(`Checking session status API: ${url}`, 'info');
             // Only log this if debugging is needed, otherwise it might be too noisy. 
@@ -1002,7 +1004,7 @@ const StreamViewPage = () => {
                     try {
                         const token = localStorage.getItem('token');
                         if (token) {
-                            await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
+                            await fetch(`${API_BASE_URL}/devices/${deviceId}/clear-viewer`, {
                                 method: 'POST',
                                 headers: {
                                     'Authorization': `Bearer ${token}`,

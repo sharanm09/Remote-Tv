@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 import { Search, Filter, Plus, MoreVertical, Eye, Edit2, ChevronLeft, ChevronRight, Users as UsersIcon, Shield } from 'lucide-react';
 import AdminLayout from '../../../components/layout/AdminLayout';
 import AddUserModal from '../../users/components/AddUserModal';
@@ -48,7 +49,7 @@ const UserRoleManagement = () => {
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users`, {
+            const response = await fetch(`${API_BASE_URL}/users`, {
                 credentials: 'include'
             });
             const data = await response.json();
@@ -64,7 +65,7 @@ const UserRoleManagement = () => {
     const fetchRoles = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles`, {
+            const response = await fetch(`${API_BASE_URL}/roles`, {
                 credentials: 'include'
             });
             const data = await response.json();
@@ -123,7 +124,7 @@ const UserRoleManagement = () => {
 
     const toggleUserStatus = async (userId) => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/${userId}/status`, {
+            const response = await fetch(`${API_BASE_URL}/users/${userId}/status`, {
                 method: 'PATCH',
                 credentials: 'include'
             });

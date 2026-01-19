@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Shield } from 'lucide-react';
 
@@ -13,7 +14,7 @@ const AddRoleModal = ({ isOpen, onClose, onRoleAdded }) => {
         setError('');
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles`, {
+            const response = await fetch(`${API_BASE_URL}/roles`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

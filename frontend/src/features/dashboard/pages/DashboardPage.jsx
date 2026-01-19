@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, SOCKET_URL } from '../../../config/api';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client'; // Import socket.io-client
 import AdminDashboard from './AdminDashboard';
@@ -61,7 +62,7 @@ const DashboardPage = () => {
                 ...(searchFilters.location && { location: searchFilters.location })
             });
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices?${params}`, {
+            const response = await fetch(`${API_BASE_URL}/devices?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -97,7 +98,7 @@ const DashboardPage = () => {
 
     // Real-time Updates & Request System using Socket.IO
     useEffect(() => {
-        const socket = io(import.meta.env.VITE_SOCKET_URL);
+        const socket = io(SOCKET_URL);
 
         // 1. Device Status Updates
         socket.on('device-status-update', (updatedDevice) => {
@@ -200,7 +201,7 @@ const DashboardPage = () => {
 
     const handleLogout = async () => {
         try {
-            await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
+            await fetch(`${API_BASE_URL}/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -229,7 +230,7 @@ const DashboardPage = () => {
     const handleRequestAccess = async (device, note) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/requests/send`, {
+            const response = await fetch(`${API_BASE_URL}/requests/send`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -257,7 +258,7 @@ const DashboardPage = () => {
     const handleRespondRequest = async (requestId, status, reason = null) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/requests/respond`, {
+            const response = await fetch(`${API_BASE_URL}/requests/respond`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

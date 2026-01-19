@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Shield, Loader } from 'lucide-react';
 
@@ -19,7 +20,7 @@ const EditRoleModal = ({ isOpen, onClose, role, onRoleUpdated }) => {
         setError('');
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles/${role.id}`, {
+            const response = await fetch(`${API_BASE_URL}/roles/${role.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json'

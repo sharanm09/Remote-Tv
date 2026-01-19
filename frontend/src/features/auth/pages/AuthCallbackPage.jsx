@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
+import { API_BASE_URL } from '../../../config/api';
 
 const AuthCallbackPage = () => {
     const [searchParams] = useSearchParams();
@@ -19,7 +20,8 @@ const AuthCallbackPage = () => {
                 // Store token first to use in request
                 localStorage.setItem('token', token);
 
-                const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/me`, {
+                console.log('🔐 [AuthCallback] Fetching user profile:', `${API_BASE_URL}/auth/me`);
+                const response = await fetch(`${API_BASE_URL}/auth/me`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }

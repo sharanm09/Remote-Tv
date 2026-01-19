@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 import { X, Monitor, Check, ChevronDown } from 'lucide-react';
 
 const BACKEND_OPTIONS = [
@@ -56,7 +57,7 @@ const AddDeviceModal = ({ isOpen, onClose, onDeviceAdded }) => {
                 return;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices`, {
+            const response = await fetch(`${API_BASE_URL}/devices`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

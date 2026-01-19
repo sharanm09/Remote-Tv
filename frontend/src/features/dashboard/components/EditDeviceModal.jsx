@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 import { X, Monitor, Check, ChevronDown } from 'lucide-react';
 
 const BACKEND_OPTIONS = [
@@ -76,7 +77,7 @@ const EditDeviceModal = ({ isOpen, onClose, onDeviceUpdated, device }) => {
                 return;
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/devices/${device.id}`, {
+            const response = await fetch(`${API_BASE_URL}/devices/${device.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,

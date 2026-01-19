@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Lock, Mail, ArrowRight, User } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../../../config/api';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -22,7 +23,8 @@ const LoginPage = () => {
 
         try {
             const payload = { email, password };
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
+            console.log('🔐 [Login] Calling:', `${API_BASE_URL}/auth/login`);
+            const response = await fetch(`${API_BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -63,7 +65,8 @@ const LoginPage = () => {
 
     const handleSocialLogin = (provider) => {
         if (provider === 'google') {
-            window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login/google`;
+            console.log('🔐 [Login] Google OAuth redirect:', `${API_BASE_URL}/auth/login/google`);
+            window.location.href = `${API_BASE_URL}/auth/login/google`;
         }
     };
 

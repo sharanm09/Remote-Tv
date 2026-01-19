@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import { Monitor, Bell, Users, LayoutDashboard, Settings, LogOut, Menu, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -25,7 +26,7 @@ const AdminLayout = ({ children }) => {
 
     const handleLogout = async () => {
         try {
-            await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/logout`, {
+            await fetch(`${API_BASE_URL}/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

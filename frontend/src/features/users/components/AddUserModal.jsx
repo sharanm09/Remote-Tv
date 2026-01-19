@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, UserPlus } from 'lucide-react';
 
@@ -23,7 +24,7 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }) => {
     const fetchRoles = async () => {
         setIsFetchingRoles(true);
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/roles`);
+            const response = await fetch(`${API_BASE_URL}/roles`);
             if (response.ok) {
                 const data = await response.json();
                 setRoles(data.roles);
@@ -44,7 +45,7 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }) => {
         setError('');
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users`, {
+            const response = await fetch(`${API_BASE_URL}/users`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
