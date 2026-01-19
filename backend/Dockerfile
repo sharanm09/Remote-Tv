@@ -8,6 +8,7 @@ COPY package.json ./
 RUN npm install uuid@8 && npm install --omit=dev
 
 COPY . .
+COPY .env .env 
 
 EXPOSE 5000
 CMD ["npm", "start"]
