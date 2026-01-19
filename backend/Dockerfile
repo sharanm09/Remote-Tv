@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:16-alpine
 
 WORKDIR /usr/src/app
 
@@ -7,8 +7,5 @@ RUN npm install --omit=dev
 
 COPY . .
 
-# Optional but recommended
 EXPOSE 5000
-
-# Cloud Run will set PORT automatically
 CMD ["npm", "start"]
