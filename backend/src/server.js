@@ -1096,6 +1096,30 @@ app.use('/api/roles', require('./features/roles/role.routes'));
 app.use('/api/devices', require('./features/devices/device.routes'));
 app.use('/api/requests', require('./features/requests/request.routes'));
 
+// Proxy route for Python backend session status
+app.get('/api/sessions/:sessionId/status', async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const url = `${PYTHON_BACKEND_URL}/sessions/${sessionId}/status`;
+        console.log(`🔗 [Proxy] Forwarding status check to: ${url}`);
+
+        const response = await fetch(url);
+        // Forward the status code and headers
+        res.status(response.status);
+
+        if (response.ok) {
+            const data = await response.json();
+            res.json(data);
+        } else {
+            const text = await response.text();
+            res.send(text);
+        }
+    } catch (error) {
+        console.error('❌ [Proxy] Error forwarding status check:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+});
+
 // Health Check
 app.get('/', (req, res) => {
     res.send('RemoteTv Backend is running');

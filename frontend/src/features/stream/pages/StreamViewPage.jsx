@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { API_BASE_URL, SOCKET_URL, PYTHON_BACKEND_URL } from '../../../config/api';
+import { API_BASE_URL, SOCKET_URL } from '../../../config/api';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft, RefreshCw, Volume2, Volume1, VolumeX, Camera, Video as VideoIcon, X, RotateCcw, Bell
@@ -19,6 +19,11 @@ const StreamViewPage = () => {
     const videoDropdownRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const recordingChunksRef = useRef([]);
+    const streamAttachedRef = useRef(false); // Track if stream is already attached
+    const playAttemptedRef = useRef(false); // Track if play() has been attempted
+    const connectingRef = useRef(false); // Track if connection attempt is in progress
+    const isOfferHandlingRef = useRef(false); // Track if offer is being processed
+    const requestConnectionEmittedRef = useRef(false); // Track if request-connection was already emitted
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -73,6 +78,26 @@ const StreamViewPage = () => {
     };
 
     useEffect(() => {
+        const sessionStartTime = new Date().toISOString();
+        console.log('🚀 [DIAGNOSTIC] ========== SESSION START ==========');
+        console.log('🔍 [DIAGNOSTIC] Session Info:', {
+            timestamp: sessionStartTime,
+            deviceId: deviceId,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            connectionType: navigator.connection?.effectiveType || 'unknown',
+            onLine: navigator.onLine,
+            cookieEnabled: navigator.cookieEnabled,
+            hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
+            deviceMemory: navigator.deviceMemory || 'unknown',
+            screenResolution: `${window.screen.width}x${window.screen.height}`,
+            windowSize: `${window.innerWidth}x${window.innerHeight}`,
+            referrer: document.referrer || 'direct',
+            url: window.location.href
+        });
+        
         fetchDeviceDetails();
 
         // Reset loading state when component mounts/reconnects
@@ -106,15 +131,147 @@ const StreamViewPage = () => {
             socketRef.current.disconnect();
         }
         console.log('🔌 [Socket] Connecting to:', SOCKET_URL);
-        socketRef.current = io(SOCKET_URL);
+        
+        // Log socket connection diagnostics
+        const socketDiagnostics = {
+            timestamp: new Date().toISOString(),
+            socketUrl: SOCKET_URL,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            connectionType: navigator.connection?.effectiveType || 'unknown',
+            onLine: navigator.onLine,
+            cookieEnabled: navigator.cookieEnabled,
+            deviceId: deviceId
+        };
+        console.log('🔍 [DIAGNOSTIC] Socket Connection Init:', JSON.stringify(socketDiagnostics, null, 2));
+        
+        socketRef.current = io(SOCKET_URL, {
+            transports: ['websocket', 'polling'],
+            upgrade: true,
+            rememberUpgrade: false,
+            timeout: 20000,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5
+        });
+
+        // IMPORTANT: Set up socket event handlers BEFORE connecting
+        // This ensures listeners are ready when backend sends events immediately after join-stream
+        // Setup socket event handlers early to catch streamer-present/ready events
+        const setupSocketEventHandlersEarly = (verifiedUserId) => {
+            if (!socketRef.current) return;
+
+            socketRef.current.on('streamer-ready', () => {
+                // Prevent duplicate request-connection emits
+                if (requestConnectionEmittedRef.current) {
+                    console.log('⚠️ [DIAGNOSTIC] request-connection already emitted, skipping duplicate');
+                    return;
+                }
+
+                const timestamp = new Date().toISOString();
+                console.log('📡 Streamer is now ready. Requesting connection...');
+                console.log('🔍 [DIAGNOSTIC] Streamer Ready Event:', {
+                    timestamp,
+                    deviceId,
+                    socketId: socketRef.current.id,
+                    socketConnected: socketRef.current.connected,
+                    hasPeerConnection: !!peerConnection.current,
+                    peerConnectionState: peerConnection.current?.connectionState || 'no-pc'
+                });
+                setLoading(true);
+                setError(null);
+                requestConnectionEmittedRef.current = true;
+                socketRef.current.emit('request-connection', { deviceId });
+                console.log('📤 [DIAGNOSTIC] Emitted request-connection for deviceId:', deviceId);
+            });
+
+            socketRef.current.on('streamer-present', () => {
+                // Prevent duplicate request-connection emits
+                if (requestConnectionEmittedRef.current) {
+                    console.log('⚠️ [DIAGNOSTIC] request-connection already emitted, skipping duplicate');
+                    return;
+                }
+
+                const timestamp = new Date().toISOString();
+                console.log('📡 Streamer is already present in room. Checking status...');
+                console.log('🔍 [DIAGNOSTIC] Streamer Present Event:', {
+                    timestamp,
+                    deviceId,
+                    socketId: socketRef.current.id,
+                    socketConnected: socketRef.current.connected,
+                    hasPeerConnection: !!peerConnection.current,
+                    peerConnectionState: peerConnection.current?.connectionState || 'no-pc'
+                });
+                setLoading(true);
+                setError(null);
+                requestConnectionEmittedRef.current = true;
+                socketRef.current.emit('request-connection', { deviceId });
+                console.log('📤 [DIAGNOSTIC] Emitted request-connection for deviceId:', deviceId);
+            });
+        };
+
+        // Set up early listeners immediately
+        setupSocketEventHandlersEarly(userId);
 
         // Wait for socket to connect before emitting
         socketRef.current.on('connect', () => {
+            const connectTimestamp = new Date().toISOString();
             console.log('✅ Socket.IO connected');
+            console.log('🔍 [DIAGNOSTIC] Socket Connected:', {
+                timestamp: connectTimestamp,
+                socketId: socketRef.current.id,
+                transport: socketRef.current.io.engine.transport.name,
+                readyState: socketRef.current.io.readyState,
+                deviceId: deviceId,
+                userId: userId
+            });
+            
+            // Log all socket events for debugging
+            const originalEmit = socketRef.current.emit.bind(socketRef.current);
+            socketRef.current.emit = function(event, ...args) {
+                console.log('📤 [DIAGNOSTIC] Socket Emit:', {
+                    event,
+                    args: args.length > 0 ? JSON.stringify(args[0]).substring(0, 200) : 'no args',
+                    timestamp: new Date().toISOString()
+                });
+                return originalEmit(event, ...args);
+            };
+            
             socketRef.current.emit('join-stream', {
                 deviceId,
                 isStreamer: false,
                 userId: userId // Use userId from localStorage
+            });
+            console.log('📤 [DIAGNOSTIC] Emitted join-stream:', { deviceId, isStreamer: false, userId });
+        });
+        
+        socketRef.current.on('connect_error', (error) => {
+            console.error('❌ [DIAGNOSTIC] Socket Connection Error:', {
+                timestamp: new Date().toISOString(),
+                error: error.message,
+                type: error.type,
+                description: error.description,
+                context: error.context,
+                transport: socketRef.current?.io?.engine?.transport?.name || 'unknown'
+            });
+        });
+        
+        socketRef.current.on('disconnect', (reason) => {
+            console.log('🔌 [DIAGNOSTIC] Socket Disconnected:', {
+                timestamp: new Date().toISOString(),
+                reason: reason,
+                socketId: socketRef.current?.id || 'unknown'
+            });
+        });
+        
+        socketRef.current.on('reconnect', (attemptNumber) => {
+            console.log('🔄 [DIAGNOSTIC] Socket Reconnected:', {
+                timestamp: new Date().toISOString(),
+                attemptNumber: attemptNumber,
+                socketId: socketRef.current?.id || 'unknown'
             });
         });
 
@@ -127,8 +284,49 @@ const StreamViewPage = () => {
             }
         }
 
+        // Log connection initiation with diagnostic info
+        const connectionDiagnostics = {
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            connectionType: navigator.connection?.effectiveType || 'unknown',
+            deviceMemory: navigator.deviceMemory || 'unknown',
+            hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
+            cookieEnabled: navigator.cookieEnabled,
+            onLine: navigator.onLine,
+            deviceId: deviceId
+        };
+        console.log('🌐 [DIAGNOSTIC] Connection Initiation:', JSON.stringify(connectionDiagnostics, null, 2));
+        
+        // Try to get location info (if available)
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    console.log('📍 [DIAGNOSTIC] Location:', {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy
+                    });
+                },
+                (error) => {
+                    console.log('📍 [DIAGNOSTIC] Location not available:', error.message);
+                },
+                { timeout: 5000, maximumAge: 60000 }
+            );
+        }
+
         peerConnection.current = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        
+        console.log('🔌 [DIAGNOSTIC] PeerConnection created:', {
+            connectionState: peerConnection.current.connectionState,
+            iceConnectionState: peerConnection.current.iceConnectionState,
+            iceGatheringState: peerConnection.current.iceGatheringState,
+            localDescription: peerConnection.current.localDescription?.type || 'null',
+            remoteDescription: peerConnection.current.remoteDescription?.type || 'null'
         });
 
         // Setup peer connection handlers
@@ -137,40 +335,130 @@ const StreamViewPage = () => {
 
             peerConnection.current.oniceconnectionstatechange = () => {
                 const state = peerConnection.current.iceConnectionState;
+                const connectionState = peerConnection.current.connectionState;
+                const iceGatheringState = peerConnection.current.iceGatheringState;
+                const timestamp = new Date().toISOString();
+                
                 console.log('🧊 ICE Connection State:', state);
+                console.log('📊 [DIAGNOSTIC] Connection States:', {
+                    timestamp,
+                    iceConnectionState: state,
+                    connectionState: connectionState,
+                    iceGatheringState: iceGatheringState,
+                    localDescription: peerConnection.current.localDescription?.type || 'null',
+                    remoteDescription: peerConnection.current.remoteDescription?.type || 'null',
+                    localDescriptionSDP: peerConnection.current.localDescription?.sdp?.substring(0, 200) || 'null',
+                    remoteDescriptionSDP: peerConnection.current.remoteDescription?.sdp?.substring(0, 200) || 'null'
+                });
+                
                 const wasConnected = isConnected;
 
                 if (state === 'connected' || state === 'completed') {
                     setIsConnected(true);
+                    setLoading(false);
+                    setError(null);
                     // Notify backend that WebRTC connection is established
                     if (!wasConnected && socketRef.current) {
+                        const connectionTime = new Date().toISOString();
                         console.log('✅ WebRTC connected - notifying backend');
+                        console.log('🎉 [DIAGNOSTIC] Connection Established:', {
+                            timestamp: connectionTime,
+                            iceConnectionState: state,
+                            connectionState: connectionState,
+                            localDescription: peerConnection.current.localDescription?.type || 'null',
+                            remoteDescription: peerConnection.current.remoteDescription?.type || 'null',
+                            socketId: socketRef.current.id,
+                            deviceId: deviceId,
+                            userId: verifiedUserId
+                        });
                         socketRef.current.emit('viewer-webrtc-connected', { deviceId, userId: verifiedUserId });
                     }
 
-                    // Ensure video plays when connection is established
-                    if (remoteVideoRef.current && remoteVideoRef.current.srcObject && remoteVideoRef.current.paused) {
-                        console.log('▶️ Attempting to play video after connection established');
-                        remoteVideoRef.current.play().catch(err => {
-                            console.error('Error playing video after connection:', err);
-                        });
-                    }
-                } else {
+                    // Don't call play() here - let onCanPlay handle it to avoid AbortError
+                    // The video element has autoplay, so it will play automatically when ready
+                } else if (state === 'disconnected') {
+                    // Disconnected is often temporary - don't immediately show error
+                    // Wait a bit to see if it reconnects
                     setIsConnected(false);
-                    // Notify backend that WebRTC connection is lost
+                    console.log('⚠️ ICE Connection disconnected (may be temporary)');
+                    
+                    // Only notify backend if we were previously connected (not just checking)
                     if (wasConnected && socketRef.current) {
-                        console.log('❌ WebRTC disconnected - notifying backend');
+                        // Give it a moment to reconnect before notifying
+                        setTimeout(() => {
+                            if (peerConnection.current && 
+                                peerConnection.current.iceConnectionState === 'disconnected') {
+                                console.log('❌ WebRTC disconnected - notifying backend');
+                                socketRef.current.emit('viewer-webrtc-disconnected', { deviceId, userId: verifiedUserId });
+                            }
+                        }, 2000); // Wait 2 seconds to see if it reconnects
+                    }
+                } else if (state === 'checking') {
+                    // Connection is being established
+                    setIsConnected(false);
+                    setLoading(true);
+                } else if (state === 'failed') {
+                    setIsConnected(false);
+                    setLoading(false);
+                    
+                    // Don't show error immediately - could be temporary network issue
+                    // Only show error if we were previously connected or if it persists
+                    const failureInfo = {
+                        timestamp: new Date().toISOString(),
+                        iceConnectionState: state,
+                        connectionState: connectionState,
+                        localDescription: peerConnection.current.localDescription?.type || 'null',
+                        remoteDescription: peerConnection.current.remoteDescription?.type || 'null',
+                        socketId: socketRef.current?.id || 'unknown',
+                        socketConnected: socketRef.current?.connected || false,
+                        deviceId: deviceId,
+                        networkType: navigator.connection?.effectiveType || 'unknown',
+                        onLine: navigator.onLine
+                    };
+                    
+                    console.error('❌ [DIAGNOSTIC] ICE Connection Failed:', failureInfo);
+                    
+                    // Only show error to user if we were previously connected
+                    // Otherwise, it might just be a network issue that will resolve
+                    if (wasConnected) {
+                        setError('Connection lost. This may be due to network issues. Please check your connection.');
+                        addActionLog('WebRTC connection failed - network issue detected', 'error');
+                    } else {
+                        // First time failure - might be network/firewall issue
+                        console.warn('⚠️ [DIAGNOSTIC] ICE connection failed on first attempt - possible network/firewall issue');
+                        addActionLog('ICE connection failed - checking network connectivity', 'warning');
+                        setError('Connection attempt failed. This may be due to network restrictions or firewall settings.');
+                    }
+                    
+                    // Notify backend
+                    if (socketRef.current) {
                         socketRef.current.emit('viewer-webrtc-disconnected', { deviceId, userId: verifiedUserId });
                     }
-                }
-                if (state === 'failed') {
-                    setError('ICE Connection failed. Check network components.');
+                } else {
+                    // 'new' or 'closed' states
+                    setIsConnected(false);
                 }
             };
 
             peerConnection.current.onicecandidate = (event) => {
                 if (event.candidate) {
+                    const candidate = event.candidate;
                     console.log('📤 Sending ICE candidate to streamer');
+                    console.log('🔍 [DIAGNOSTIC] ICE Candidate Details:', {
+                        timestamp: new Date().toISOString(),
+                        candidate: candidate.candidate,
+                        sdpMLineIndex: candidate.sdpMLineIndex,
+                        sdpMid: candidate.sdpMid,
+                        type: candidate.type || 'unknown',
+                        protocol: candidate.protocol || 'unknown',
+                        address: candidate.address || 'unknown',
+                        port: candidate.port || 'unknown',
+                        priority: candidate.priority || 'unknown',
+                        usernameFragment: candidate.usernameFragment || 'unknown',
+                        networkType: candidate.networkType || 'unknown',
+                        relayProtocol: candidate.relayProtocol || 'unknown'
+                    });
+                    
                     if (socketRef.current) {
                         socketRef.current.emit('ice-candidate', {
                             to: 'streamer',
@@ -178,10 +466,21 @@ const StreamViewPage = () => {
                             deviceId
                         });
                     }
+                } else {
+                    console.log('✅ [DIAGNOSTIC] All ICE candidates gathered');
+                    console.log('📊 [DIAGNOSTIC] Final Connection State:', {
+                        timestamp: new Date().toISOString(),
+                        iceConnectionState: peerConnection.current.iceConnectionState,
+                        connectionState: peerConnection.current.connectionState,
+                        iceGatheringState: peerConnection.current.iceGatheringState,
+                        localDescription: peerConnection.current.localDescription?.type || 'null',
+                        remoteDescription: peerConnection.current.remoteDescription?.type || 'null'
+                    });
                 }
             };
 
             peerConnection.current.ontrack = (event) => {
+                const timestamp = new Date().toISOString();
                 console.log('🎥 Received remote track:', event);
                 console.log('📹 Track details:', {
                     kind: event.track.kind,
@@ -190,40 +489,53 @@ const StreamViewPage = () => {
                     readyState: event.track.readyState,
                     streams: event.streams.length
                 });
+                console.log('🔍 [DIAGNOSTIC] Track Received:', {
+                    timestamp,
+                    trackKind: event.track.kind,
+                    trackId: event.track.id,
+                    trackEnabled: event.track.enabled,
+                    trackReadyState: event.track.readyState,
+                    streamCount: event.streams.length,
+                    streamId: event.streams[0]?.id || 'unknown',
+                    transceiverDirection: event.transceiver?.direction || 'unknown',
+                    transceiverMid: event.transceiver?.mid || 'unknown',
+                    receiverTrack: event.receiver?.track?.id || 'unknown',
+                    connectionState: peerConnection.current.connectionState,
+                    iceConnectionState: peerConnection.current.iceConnectionState
+                });
 
                 if (event.streams && event.streams.length > 0 && remoteVideoRef.current) {
-                    console.log('✅ Setting video source from stream');
                     const stream = event.streams[0];
-                    remoteVideoRef.current.srcObject = stream;
+                    const video = remoteVideoRef.current;
+                    
+                    // CRITICAL: Only set srcObject ONCE to prevent AbortError
+                    // Check if this is the same stream or if we've already attached
+                    if (streamAttachedRef.current && video.srcObject === stream) {
+                        console.log('⚠️ Stream already attached, skipping srcObject assignment');
+                        return;
+                    }
+
+                    // If we have a different stream, we need to replace it
+                    if (streamAttachedRef.current && video.srcObject && video.srcObject !== stream) {
+                        console.log('🔄 Replacing existing stream with new stream');
+                        // Stop old tracks before replacing
+                        if (video.srcObject && video.srcObject.getTracks) {
+                            video.srcObject.getTracks().forEach(track => track.stop());
+                        }
+                    }
+
+                    console.log('✅ Setting video source from stream');
+                    streamAttachedRef.current = true;
+                    playAttemptedRef.current = false; // Reset play attempt flag for new stream
+                    video.srcObject = stream;
 
                     // Clear loading immediately when stream is attached
                     setLoading(false);
                     setError(null);
                     console.log('✅ Video stream attached to element');
 
-                    // Explicitly play the video
-                    const playPromise = remoteVideoRef.current.play();
-                    if (playPromise !== undefined) {
-                        playPromise.then(() => {
-                            console.log('✅ Video playback started successfully');
-                            setLoading(false); // Ensure loading is cleared
-                        }).catch(err => {
-                            console.error('❌ Error playing video:', err);
-                            // Try unmuting and playing again (some browsers require user interaction)
-                            remoteVideoRef.current.muted = true;
-                            remoteVideoRef.current.play().then(() => {
-                                console.log('✅ Video playback started after unmuting');
-                                setLoading(false);
-                            }).catch(err2 => {
-                                console.error('❌ Still failed to play video:', err2);
-                                setError('Video loaded but failed to play. Please interact with the page.');
-                                setLoading(false);
-                            });
-                        });
-                    } else {
-                        // If play() returns undefined, video should auto-play
-                        setLoading(false);
-                    }
+                    // Don't call play() here - let onCanPlay handle it to avoid AbortError
+                    // The video element has autoplay attribute, so it should play automatically
                 } else {
                     console.warn('⚠️ No streams in track event or video element missing');
                 }
@@ -233,14 +545,111 @@ const StreamViewPage = () => {
         // Set up peer connection handlers
         setupPeerConnectionHandlers(userId);
 
+        // Add video event listeners to detect load events and reset refs
+        const video = remoteVideoRef.current;
+        const handleLoadStart = () => {
+            console.log('📹 Video loadstart - new load detected');
+            // Reset play attempt flag when new load starts
+            playAttemptedRef.current = false;
+        };
+
+        const handleEmptied = () => {
+            console.log('📹 Video emptied - source cleared');
+            streamAttachedRef.current = false;
+            playAttemptedRef.current = false;
+        };
+
+        if (video) {
+            video.addEventListener('loadstart', handleLoadStart);
+            video.addEventListener('emptied', handleEmptied);
+        }
+
         // Setup socket event handlers
         const setupSocketEventHandlers = (verifiedUserId) => {
             if (!socketRef.current) return;
 
+            // Log all incoming socket events
+            const logSocketEvent = (eventName) => {
+                socketRef.current.on(eventName, (...args) => {
+                    console.log(`📥 [DIAGNOSTIC] Socket Event Received: ${eventName}`, {
+                        timestamp: new Date().toISOString(),
+                        args: args.length > 0 ? JSON.stringify(args[0]).substring(0, 300) : 'no args',
+                        socketId: socketRef.current.id
+                    });
+                });
+            };
+
             socketRef.current.on('offer', async ({ from, offer }) => {
+                const offerTimestamp = new Date().toISOString();
                 console.log('📨 Received offer from streamer:', from);
                 console.log('📋 Offer details:', { type: offer.type, sdp: offer.sdp?.substring(0, 100) });
+                
+                // CRITICAL: Check PeerConnection state FIRST (before any async operations)
+                // This prevents race conditions where multiple offers arrive simultaneously
+                if (peerConnection.current) {
+                    const signalingState = peerConnection.current.signalingState;
+                    const hasRemoteDesc = !!peerConnection.current.remoteDescription;
+                    const hasLocalDesc = !!peerConnection.current.localDescription;
+                    
+                    // If we already have a local description, we're already processing an offer
+                    if (hasLocalDesc) {
+                        console.warn('⚠️ [DIAGNOSTIC] Already have local description, ignoring duplicate offer', {
+                            signalingState,
+                            hasRemoteDesc,
+                            hasLocalDesc
+                        });
+                        return;
+                    }
+                    
+                    // Only accept offers when in 'stable' state (no ongoing offer/answer exchange)
+                    if (signalingState !== 'stable') {
+                        console.warn(`⚠️ [DIAGNOSTIC] PeerConnection in wrong state (${signalingState}), must be 'stable' to accept new offer`, {
+                            signalingState,
+                            hasRemoteDesc,
+                            hasLocalDesc,
+                            isOfferHandling: isOfferHandlingRef.current
+                        });
+                        return;
+                    }
+                    
+                    // If already stable and has remote description, this is a duplicate offer
+                    if (hasRemoteDesc) {
+                        console.warn('⚠️ [DIAGNOSTIC] PeerConnection already stable with remote description, ignoring duplicate offer', {
+                            signalingState,
+                            hasRemoteDesc,
+                            hasLocalDesc
+                        });
+                        return;
+                    }
+                }
+                
+                // Check if we're already handling an offer (double-check after state check)
+                if (isOfferHandlingRef.current) {
+                    console.warn('⚠️ [DIAGNOSTIC] Offer already being processed (flag check), ignoring duplicate');
+                    return;
+                }
+                
+                // Mark that we're handling an offer IMMEDIATELY (before any async operations)
+                isOfferHandlingRef.current = true;
+                
+                console.log('🔍 [DIAGNOSTIC] Offer Received:', {
+                    timestamp: offerTimestamp,
+                    from: from,
+                    offerType: offer.type,
+                    sdpLength: offer.sdp?.length || 0,
+                    sdpPreview: offer.sdp?.substring(0, 500),
+                    currentConnectionState: peerConnection.current?.connectionState || 'no-pc',
+                    currentIceState: peerConnection.current?.iceConnectionState || 'no-pc',
+                    signalingState: peerConnection.current?.signalingState || 'no-pc',
+                    hasRemoteDescription: !!peerConnection.current?.remoteDescription,
+                    hasLocalDescription: !!peerConnection.current?.localDescription,
+                    isOfferHandling: isOfferHandlingRef.current,
+                    socketConnected: socketRef.current?.connected || false,
+                    socketId: socketRef.current?.id || 'unknown'
+                });
+
                 try {
+
                     // Ensure peer connection exists
                     if (!peerConnection.current) {
                         console.log('⚠️ Peer connection missing, recreating...');
@@ -248,78 +657,100 @@ const StreamViewPage = () => {
                             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
                         });
 
-                        // Re-setup event handlers
-                        peerConnection.current.ontrack = (event) => {
-                            console.log('🎥 Received remote track:', event);
-                            console.log('📹 Track details:', {
-                                kind: event.track.kind,
-                                id: event.track.id,
-                                enabled: event.track.enabled,
-                                readyState: event.track.readyState,
-                                streams: event.streams.length
-                            });
-
-                            if (event.streams && event.streams.length > 0 && remoteVideoRef.current) {
-                                console.log('✅ Setting video source from stream');
-                                remoteVideoRef.current.srcObject = event.streams[0];
-                                setLoading(false);
-                                setError(null);
-                                console.log('✅ Video stream attached to element');
-
-                                // Play the video
-                                remoteVideoRef.current.play().catch(err => {
-                                    console.error('Error playing video:', err);
-                                });
-                            } else {
-                                console.warn('⚠️ No streams in track event');
-                            }
-                        };
-
-                        peerConnection.current.oniceconnectionstatechange = () => {
-                            const state = peerConnection.current.iceConnectionState;
-                            console.log('🧊 ICE Connection State:', state);
-                            if (state === 'connected' || state === 'completed') {
-                                setIsConnected(true);
-                                if (socketRef.current) {
-                                    socketRef.current.emit('viewer-webrtc-connected', { deviceId, userId: verifiedUserId });
-                                }
-                            } else {
-                                setIsConnected(false);
-                            }
-                            if (state === 'failed') {
-                                setError('ICE Connection failed. Check network components.');
-                                setLoading(false);
-                            }
-                        };
+                        // Re-setup event handlers using the same function
+                        setupPeerConnectionHandlers(verifiedUserId);
                     }
 
+                    const setRemoteStart = Date.now();
                     console.log('📥 Setting remote description...');
                     await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
+                    const setRemoteTime = Date.now() - setRemoteStart;
                     console.log('✅ Remote description set');
+                    console.log('⏱️ [DIAGNOSTIC] setRemoteDescription took:', setRemoteTime, 'ms');
 
+                    const createAnswerStart = Date.now();
                     console.log('📝 Creating answer...');
                     const answer = await peerConnection.current.createAnswer();
+                    const createAnswerTime = Date.now() - createAnswerStart;
                     console.log('✅ Answer created');
+                    console.log('⏱️ [DIAGNOSTIC] createAnswer took:', createAnswerTime, 'ms');
+                    console.log('🔍 [DIAGNOSTIC] Answer Details:', {
+                        type: answer.type,
+                        sdpLength: answer.sdp?.length || 0,
+                        sdpPreview: answer.sdp?.substring(0, 500)
+                    });
 
+                    const setLocalStart = Date.now();
                     console.log('📤 Setting local description...');
+                    
+                    // Final check before setting local description - state might have changed during async operations
+                    if (peerConnection.current.signalingState !== 'have-remote-offer') {
+                        console.warn(`⚠️ [DIAGNOSTIC] Signaling state changed to ${peerConnection.current.signalingState}, cannot set local description`);
+                        throw new Error(`Invalid signaling state: ${peerConnection.current.signalingState}, expected 'have-remote-offer'`);
+                    }
+                    
                     await peerConnection.current.setLocalDescription(answer);
+                    const setLocalTime = Date.now() - setLocalStart;
                     console.log('✅ Local description set');
+                    console.log('⏱️ [DIAGNOSTIC] setLocalDescription took:', setLocalTime, 'ms');
+                    console.log('🔍 [DIAGNOSTIC] After setLocalDescription:', {
+                        connectionState: peerConnection.current.connectionState,
+                        iceConnectionState: peerConnection.current.iceConnectionState,
+                        iceGatheringState: peerConnection.current.iceGatheringState,
+                        signalingState: peerConnection.current.signalingState
+                    });
 
                     console.log('📨 Sending answer to streamer');
                     socketRef.current.emit('answer', { to: from, answer, deviceId });
                     setLoading(true); // Show loading while establishing connection
                 } catch (err) {
                     console.error('❌ Error handling offer:', err);
+                    console.error('❌ [DIAGNOSTIC] Offer Error Details:', {
+                        errorName: err?.name,
+                        errorMessage: err?.message,
+                        signalingState: peerConnection.current?.signalingState,
+                        connectionState: peerConnection.current?.connectionState,
+                        hasRemoteDescription: !!peerConnection.current?.remoteDescription,
+                        hasLocalDescription: !!peerConnection.current?.localDescription
+                    });
                     setError(`Failed to establish connection: ${err.message}`);
                     setLoading(false);
+                } finally {
+                    // Reset the flag after processing (or on error)
+                    isOfferHandlingRef.current = false;
                 }
             });
 
-            socketRef.current.on('ice-candidate', ({ candidate }) => {
+            socketRef.current.on('ice-candidate', ({ candidate, from }) => {
+                const receiveTimestamp = new Date().toISOString();
                 console.log('📨 Received ICE candidate from streamer');
                 if (candidate) {
+                    console.log('🔍 [DIAGNOSTIC] Received ICE Candidate:', {
+                        timestamp: receiveTimestamp,
+                        from: from || 'streamer',
+                        candidate: candidate.candidate,
+                        sdpMLineIndex: candidate.sdpMLineIndex,
+                        sdpMid: candidate.sdpMid,
+                        type: candidate.type || 'unknown',
+                        protocol: candidate.protocol || 'unknown',
+                        address: candidate.address || 'unknown',
+                        port: candidate.port || 'unknown',
+                        priority: candidate.priority || 'unknown',
+                        networkType: candidate.networkType || 'unknown',
+                        currentIceState: peerConnection.current?.iceConnectionState || 'no-pc',
+                        currentConnectionState: peerConnection.current?.connectionState || 'no-pc'
+                    });
                     peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate))
-                        .catch(e => console.error('❌ Error adding candidate:', e));
+                        .then(() => {
+                            console.log('✅ [DIAGNOSTIC] ICE candidate added successfully');
+                        })
+                        .catch(e => {
+                            console.error('❌ [DIAGNOSTIC] Error adding candidate:', {
+                                error: e.message,
+                                name: e.name,
+                                candidate: candidate.candidate?.substring(0, 100)
+                            });
+                        });
                 }
             });
 
@@ -328,10 +759,14 @@ const StreamViewPage = () => {
                 setError('Streamer disconnected');
                 setLoading(false);
                 setIsConnected(false);
-                // Clear video source
+                // Clear video source and reset refs
                 if (remoteVideoRef.current) {
                     remoteVideoRef.current.srcObject = null;
                 }
+                streamAttachedRef.current = false;
+                playAttemptedRef.current = false;
+                isOfferHandlingRef.current = false;
+                requestConnectionEmittedRef.current = false; // Reset so we can request connection again
                 // Close peer connection
                 if (peerConnection.current) {
                     try {
@@ -343,19 +778,8 @@ const StreamViewPage = () => {
                 }
             });
 
-            socketRef.current.on('streamer-ready', () => {
-                console.log('📡 Streamer is now ready. Requesting connection...');
-                setLoading(true); // Show loading while establishing connection
-                setError(null);
-                socketRef.current.emit('request-connection', { deviceId });
-            });
-
-            socketRef.current.on('streamer-present', () => {
-                console.log('📡 Streamer is already present in room. Checking status...');
-                setLoading(true); // Show loading while establishing connection
-                setError(null);
-                socketRef.current.emit('request-connection', { deviceId });
-            });
+            // Note: streamer-ready and streamer-present handlers are already set up in setupSocketEventHandlersEarly
+            // to catch events immediately after socket connection. No need to duplicate here.
 
             socketRef.current.on('viewer-rejected', ({ reason }) => {
                 console.log('⚠️ Viewer connection rejected:', reason);
@@ -369,6 +793,14 @@ const StreamViewPage = () => {
 
             socketRef.current.on('stream-heartbeat', () => {
                 console.log('💓 Stream heartbeat received from streamer');
+                console.log('🔍 [DIAGNOSTIC] Stream Heartbeat:', {
+                    timestamp: new Date().toISOString(),
+                    hasPeerConnection: !!peerConnection.current,
+                    peerConnectionState: peerConnection.current?.connectionState || 'no-pc',
+                    iceConnectionState: peerConnection.current?.iceConnectionState || 'no-pc',
+                    hasOffer: !!peerConnection.current?.remoteDescription,
+                    socketId: socketRef.current.id
+                });
             });
 
             // Listen for connection requests (when user is the streamer or connected viewer)
@@ -570,6 +1002,23 @@ const StreamViewPage = () => {
 
             clearInterval(timer);
             document.removeEventListener('mousedown', handleClickOutside);
+
+            // Remove video event listeners
+            const video = remoteVideoRef.current;
+            if (video) {
+                video.removeEventListener('loadstart', handleLoadStart);
+                video.removeEventListener('emptied', handleEmptied);
+            }
+
+            // Reset video refs
+            streamAttachedRef.current = false;
+            playAttemptedRef.current = false;
+            connectingRef.current = false;
+            isOfferHandlingRef.current = false;
+            requestConnectionEmittedRef.current = false;
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = null;
+            }
 
             // Clear connected viewer immediately when viewer disconnects
             const clearViewer = async () => {
@@ -798,11 +1247,7 @@ const StreamViewPage = () => {
         if (!sessionId) return false;
 
         try {
-            const url = `${PYTHON_BACKEND_URL}/sessions/${sessionId}/status`;
-            // Log full API URL to UI as requested
-            addActionLog(`Checking session status API: ${url}`, 'info');
-            // Only log this if debugging is needed, otherwise it might be too noisy. 
-            // But since user asked for "which api it is calling", we will log it on failure or initial check.
+            const url = `${API_BASE_URL}/sessions/${sessionId}/status`;
             console.log(`🔍 [Frontend] Checking status at: ${url}`);
 
             const response = await fetch(url);
@@ -810,14 +1255,13 @@ const StreamViewPage = () => {
                 const data = await response.json();
                 const isConnected = data.connected === true && data.status === 'connected';
                 console.log('📊 [Frontend] Session status check:', { sessionId, isConnected, status: data.status });
-                if (isConnected) {
-                    // Only log on change or initial connection to avoid spamming, but for now log verbose for debugging
-                    // addActionLog(`TV verification: Connected (Status: ${data.status})`, 'success'); 
-                }
                 return isConnected;
+            } else if (response.status === 404) {
+                // Session was deleted (expected when connection fails or TV disconnects)
+                console.log('ℹ️ [Frontend] Session not found (404) - session was likely deleted:', sessionId);
+                return false;
             } else {
                 console.warn('⚠️ [Frontend] Session status check failed:', response.status);
-                addActionLog(`TV verification failed: Session status check returned ${response.status}`, 'warning');
                 return false;
             }
         } catch (error) {
@@ -872,10 +1316,33 @@ const StreamViewPage = () => {
         }
 
         return new Promise((resolve) => {
+            let resolved = false; // Track if Promise was resolved
+            const TIMEOUT_MS = 15000; // 15 seconds
+
             addActionLog(`Initiating connection to ${deviceData.deviceType} at ${deviceData.deviceIP}...`, 'info');
             console.log('🔗 [Frontend] Connecting to device for remote control:', deviceData);
 
+            // Set up timeout that resolves if callback never fires
+            const timeoutId = setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    console.warn('⚠️ [Frontend] Connection timeout - no response received after 15 seconds');
+                    addActionLog('Connection timeout - no response from server', 'error');
+                    setRemoteSessionId(null);
+                    setIsRemoteConnected(false);
+                    resolve(false);
+                }
+            }, TIMEOUT_MS);
+
             socketRef.current.emit('connectDevice', { deviceData }, async (response) => {
+                // Prevent timeout from firing if we already got a response
+                if (resolved) {
+                    console.log('⚠️ [Frontend] Received response after timeout, ignoring');
+                    return;
+                }
+                resolved = true;
+                clearTimeout(timeoutId);
+
                 console.log('📥 [Frontend] Received connection response:', response);
 
                 if (response && response.success && response.sessionId) {
@@ -908,13 +1375,6 @@ const StreamViewPage = () => {
                     resolve(false);
                 }
             });
-
-            // Add timeout to detect if callback never fires
-            setTimeout(() => {
-                if (!remoteSessionId) {
-                    console.warn('⚠️ [Frontend] Connection timeout - no response received after 15 seconds');
-                }
-            }, 15000);
         });
     };
 
@@ -1055,16 +1515,27 @@ const StreamViewPage = () => {
             return;
         }
 
+        let lastLoggedState = isRemoteConnected; // Track last state to avoid duplicate logs
+
         const pollInterval = setInterval(async () => {
             const isConnected = await checkSessionStatus(remoteSessionId);
-            if (!isConnected && isRemoteConnected) {
+            
+            // Only log and update if state actually changed
+            if (!isConnected && isRemoteConnected && lastLoggedState) {
                 console.warn('⚠️ [Frontend] TV connection lost during polling');
                 setIsRemoteConnected(false);
-                addActionLog('TV is off or unreachable. Please turn on the TV and reconnect.', 'error');
-            } else if (isConnected && !isRemoteConnected) {
+                lastLoggedState = false;
+                // Don't spam logs - only log once per state change
+                // addActionLog('TV is off or unreachable. Please turn on the TV and reconnect.', 'error');
+            } else if (isConnected && !isRemoteConnected && !lastLoggedState) {
                 console.log('✅ [Frontend] TV connection restored');
                 setIsRemoteConnected(true);
+                lastLoggedState = true;
                 addActionLog('TV connection restored', 'success');
+            } else if (isConnected && isRemoteConnected) {
+                lastLoggedState = true; // Update tracked state
+            } else if (!isConnected && !isRemoteConnected) {
+                lastLoggedState = false; // Update tracked state
             }
         }, 10000); // Poll every 10 seconds
 
@@ -1095,26 +1566,43 @@ const StreamViewPage = () => {
 
         // Function to attempt connection
         const attemptConnection = () => {
+            // Prevent multiple simultaneous connection attempts
+            if (connectingRef.current) {
+                console.log('⏸️ [Frontend] Connection attempt already in progress, skipping...');
+                return;
+            }
+
+            // If already connected, don't reconnect
+            if (remoteSessionId && isRemoteConnected) {
+                console.log('✅ [Frontend] Already connected, skipping connection attempt');
+                return;
+            }
+
             if (socketRef.current && socketRef.current.connected) {
                 console.log('🔌 [Frontend] Auto-connecting to device for remote control:', deviceData);
+                connectingRef.current = true;
 
                 // First check for existing session, then connect if needed
                 checkExistingSession(deviceData).then((hasSession) => {
                     if (!hasSession) {
                         console.log('🔄 [Frontend] No existing session, connecting to device...');
                         connectToDevice(deviceData).then((connected) => {
+                            connectingRef.current = false;
                             if (connected) {
                                 console.log('✅ [Frontend] Successfully connected to device for remote control');
                             } else {
                                 console.error('❌ [Frontend] Failed to connect to device');
                             }
                         }).catch(err => {
+                            connectingRef.current = false;
                             console.error('❌ [Frontend] Auto-connect error:', err);
                         });
                     } else {
+                        connectingRef.current = false;
                         console.log('✅ [Frontend] Using existing session for remote control');
                     }
                 }).catch(err => {
+                    connectingRef.current = false;
                     console.error('❌ [Frontend] Error checking existing session:', err);
                 });
             } else {
@@ -1249,21 +1737,73 @@ const StreamViewPage = () => {
                                 muted={isMuted}
                                 className="w-full h-full object-contain bg-black"
                                 onLoadedMetadata={() => {
+                                    const video = remoteVideoRef.current;
                                     console.log('📹 Video metadata loaded');
+                                    console.log('🔍 [DIAGNOSTIC] Video Metadata:', {
+                                        timestamp: new Date().toISOString(),
+                                        videoWidth: video?.videoWidth || 0,
+                                        videoHeight: video?.videoHeight || 0,
+                                        duration: video?.duration || 0,
+                                        readyState: video?.readyState || 0,
+                                        networkState: video?.networkState || 0,
+                                        srcObject: video?.srcObject?.id || 'null',
+                                        srcObjectActive: video?.srcObject?.active || false,
+                                        srcObjectVideoTracks: video?.srcObject?.getVideoTracks().length || 0,
+                                        srcObjectAudioTracks: video?.srcObject?.getAudioTracks().length || 0
+                                    });
                                     setLoading(false);
                                 }}
                                 onCanPlay={() => {
+                                    const video = remoteVideoRef.current;
                                     console.log('▶️ Video can play');
+                                    console.log('🔍 [DIAGNOSTIC] Video Can Play:', {
+                                        timestamp: new Date().toISOString(),
+                                        paused: video?.paused || false,
+                                        readyState: video?.readyState || 0,
+                                        networkState: video?.networkState || 0,
+                                        srcObject: video?.srcObject?.id || 'null',
+                                        hasSrcObject: !!video?.srcObject
+                                    });
                                     setLoading(false);
-                                    if (remoteVideoRef.current && remoteVideoRef.current.paused) {
-                                        remoteVideoRef.current.play().catch(err => {
-                                            console.error('Error in onCanPlay play():', err);
-                                        });
+                                    // Only attempt play once per stream attachment
+                                    if (video && video.paused && !playAttemptedRef.current && video.srcObject) {
+                                        playAttemptedRef.current = true;
+                                        const playPromise = video.play();
+                                        if (playPromise !== undefined) {
+                                            playPromise.catch(err => {
+                                                // AbortError is usually harmless - another play is happening
+                                                if (err?.name !== 'AbortError') {
+                                                    console.error('❌ [DIAGNOSTIC] Error in onCanPlay play():', {
+                                                        error: err.message,
+                                                        name: err.name,
+                                                        videoState: {
+                                                            paused: video.paused,
+                                                            readyState: video.readyState,
+                                                            srcObject: video.srcObject?.id || 'null'
+                                                        }
+                                                    });
+                                                } else {
+                                                    console.log('ℹ️ Play was aborted (likely by new load) - this is normal');
+                                                }
+                                                playAttemptedRef.current = false; // Allow retry on non-abort errors
+                                            });
+                                        }
                                     }
                                 }}
                                 onPlay={() => {
+                                    const video = remoteVideoRef.current;
                                     console.log('▶️ Video started playing');
+                                    console.log('🎬 [DIAGNOSTIC] Video Playing:', {
+                                        timestamp: new Date().toISOString(),
+                                        paused: video?.paused || false,
+                                        currentTime: video?.currentTime || 0,
+                                        readyState: video?.readyState || 0,
+                                        srcObject: video?.srcObject?.id || 'null',
+                                        videoWidth: video?.videoWidth || 0,
+                                        videoHeight: video?.videoHeight || 0
+                                    });
                                     setLoading(false);
+                                    playAttemptedRef.current = true; // Mark as played successfully
                                 }}
                                 onError={(e) => {
                                     console.error('❌ Video error:', e);

@@ -24,6 +24,7 @@ const StreamingPage = () => {
     // Refs for socket listeners to avoid stale state
     const isStreamingRef = useRef(false);
     const activeStreamRef = useRef(null);
+    const streamAttachedRef = useRef(false); // Track if stream is attached to video element
 
     const stopMediaTracks = (stream) => {
         if (stream) {
@@ -120,11 +121,24 @@ const StreamingPage = () => {
             console.log('📊 Current State Check:', { isStreaming: isStreamingRef.current, hasStream: !!activeStreamRef.current });
 
             if (isStreamingRef.current && activeStreamRef.current) {
-                console.log('🚀 Initiating connection to new viewer');
-                const pc = createPeerConnection(socketId);
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socketRef.current.emit('offer', { to: socketId, offer, deviceId });
+                try {
+                    console.log('🚀 Initiating connection to new viewer');
+                    const pc = createPeerConnection(socketId);
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    socketRef.current.emit('offer', { to: socketId, offer, deviceId });
+                } catch (err) {
+                    console.error('❌ Error creating peer connection for viewer:', err);
+                    // Clean up failed connection
+                    if (peerConnections.current[socketId]) {
+                        try {
+                            peerConnections.current[socketId].close();
+                        } catch (e) {
+                            console.error('Error closing failed peer connection:', e);
+                        }
+                        delete peerConnections.current[socketId];
+                    }
+                }
             } else {
                 console.log('⏳ Skipping connection initiation: Streamer not yet active');
             }
@@ -134,15 +148,34 @@ const StreamingPage = () => {
             console.log('📨 Received answer from viewer:', from);
             const pc = peerConnections.current[from];
             if (pc) {
-                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                    console.log('✅ Remote description set for viewer:', from);
+                } catch (err) {
+                    console.error('❌ Error setting remote description for viewer:', from, err);
+                    // Clean up failed connection
+                    try {
+                        pc.close();
+                    } catch (e) {
+                        console.error('Error closing failed peer connection:', e);
+                    }
+                    delete peerConnections.current[from];
+                }
+            } else {
+                console.warn('⚠️ Received answer for unknown viewer:', from);
             }
         });
 
         socketRef.current.on('ice-candidate', ({ from, candidate }) => {
             console.log('📨 Received ICE candidate from viewer:', from);
             const pc = peerConnections.current[from];
-            if (pc) {
-                pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error('❌ Error adding ICE candidate:', e));
+            if (pc && candidate) {
+                pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
+                    console.error('❌ Error adding ICE candidate:', e);
+                    // Don't cleanup on ICE candidate errors - they're often non-fatal
+                });
+            } else if (!pc) {
+                console.warn('⚠️ Received ICE candidate for unknown viewer:', from);
             }
         });
 
@@ -331,17 +364,41 @@ const StreamingPage = () => {
                 console.log(`✅ Peer connection established with viewer ${socketId}`);
             } else if (state === 'failed') {
                 console.error(`❌ Peer connection failed with viewer ${socketId}`);
+                // Clean up failed connection after a delay to allow potential reconnection
+                setTimeout(() => {
+                    if (peerConnections.current[socketId] && 
+                        peerConnections.current[socketId].iceConnectionState === 'failed') {
+                        console.log(`🧹 Cleaning up failed peer connection for ${socketId}`);
+                        try {
+                            peerConnections.current[socketId].close();
+                        } catch (e) {
+                            console.error('Error closing failed connection:', e);
+                        }
+                        delete peerConnections.current[socketId];
+                    }
+                }, 3000); // Wait 3 seconds before cleanup
+            } else if (state === 'disconnected') {
+                console.log(`⚠️ Peer connection disconnected for ${socketId} (may be temporary)`);
+                // Don't immediately cleanup - wait to see if it reconnects
+            } else if (state === 'closed') {
+                console.log(`🔒 Peer connection closed for ${socketId}`);
+                // Remove from connections map
+                delete peerConnections.current[socketId];
             }
         };
 
         pc.onicecandidate = (event) => {
             if (event.candidate) {
                 console.log('📤 Sending ICE candidate to viewer:', socketId);
-                socketRef.current.emit('ice-candidate', {
-                    to: socketId,
-                    candidate: event.candidate,
-                    deviceId
-                });
+                if (socketRef.current && socketRef.current.connected) {
+                    socketRef.current.emit('ice-candidate', {
+                        to: socketId,
+                        candidate: event.candidate,
+                        deviceId
+                    });
+                } else {
+                    console.warn('⚠️ Socket not connected, cannot send ICE candidate');
+                }
             } else {
                 console.log('✅ All ICE candidates sent to viewer:', socketId);
             }
@@ -355,15 +412,59 @@ const StreamingPage = () => {
             if (!camera) return;
             if (activeStream) stopMediaTracks(activeStream);
             try {
+                console.log('📹 Requesting camera stream for device:', camera);
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { deviceId: { exact: camera } },
                     audio: true
                 });
+                console.log('✅ Camera stream obtained:', {
+                    id: stream.id,
+                    active: stream.active,
+                    videoTracks: stream.getVideoTracks().length,
+                    audioTracks: stream.getAudioTracks().length,
+                    videoTrackId: stream.getVideoTracks()[0]?.id,
+                    videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+                    videoTrackReadyState: stream.getVideoTracks()[0]?.readyState
+                });
                 setActiveStream(stream);
                 activeStreamRef.current = stream;
-                // Update existing connections if any
-                Object.values(peerConnections.current).forEach(pc => {
-                    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+                // Update existing connections if any - use replaceTrack instead of addTrack
+                // You cannot add tracks to an established connection, must replace them
+                Object.values(peerConnections.current).forEach((pc, pcIndex) => {
+                    const senders = pc.getSenders();
+                    const newTracks = stream.getTracks();
+                    const connectionState = pc.connectionState;
+                    
+                    // If connection is not established, we can add tracks
+                    if (connectionState === 'new' || connectionState === 'connecting') {
+                        // Remove old tracks first if any
+                        senders.forEach(sender => {
+                            if (sender.track) {
+                                sender.track.stop();
+                            }
+                        });
+                        // Add new tracks
+                        newTracks.forEach(track => {
+                            pc.addTrack(track, stream);
+                        });
+                    } else {
+                        // Connection is established - must use replaceTrack
+                        // Match tracks to senders by kind (video to video, audio to audio)
+                        newTracks.forEach(newTrack => {
+                            const matchingSender = senders.find(sender => 
+                                sender.track && sender.track.kind === newTrack.kind
+                            );
+                            
+                            if (matchingSender) {
+                                // Replace existing track of same kind
+                                matchingSender.replaceTrack(newTrack).catch(err => {
+                                    console.error(`Error replacing ${newTrack.kind} track:`, err);
+                                });
+                            } else {
+                                console.warn(`⚠️ No sender found for ${newTrack.kind} track - connection may need to be recreated`);
+                            }
+                        });
+                    }
                 });
             } catch (err) {
                 console.error("Failed to start camera stream", err);
@@ -376,8 +477,74 @@ const StreamingPage = () => {
     }, [camera, permissionStatus]);
 
     useEffect(() => {
-        if (activeStream && videoRef.current) {
-            videoRef.current.srcObject = activeStream;
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (activeStream) {
+            // Only set srcObject if it's different to prevent unnecessary reloads
+            if (video.srcObject !== activeStream) {
+                console.log('📹 Setting video srcObject for streamer preview', {
+                    streamId: activeStream.id,
+                    streamActive: activeStream.active,
+                    hasVideoTracks: activeStream.getVideoTracks().length > 0
+                });
+                streamAttachedRef.current = true;
+                video.srcObject = activeStream;
+            }
+            
+            // Ensure video plays after setting srcObject
+            const playVideo = async () => {
+                if (video.paused && video.srcObject) {
+                    try {
+                        await video.play();
+                        console.log('✅ Streamer preview video playing', {
+                            paused: video.paused,
+                            readyState: video.readyState,
+                            videoWidth: video.videoWidth,
+                            videoHeight: video.videoHeight
+                        });
+                    } catch (err) {
+                        // AbortError is usually harmless
+                        if (err?.name !== 'AbortError') {
+                            console.error('❌ Error playing streamer preview:', err);
+                        } else {
+                            console.log('ℹ️ Play was aborted (likely by new load) - this is normal');
+                        }
+                    }
+                }
+            };
+            
+            // Try to play on canplay event (when video is ready)
+            const handleCanPlay = () => {
+                console.log('▶️ Video can play - attempting to play');
+                playVideo();
+            };
+            
+            // Also try on loadedmetadata
+            const handleLoadedMetadata = () => {
+                console.log('📹 Video metadata loaded');
+                playVideo();
+            };
+            
+            video.addEventListener('canplay', handleCanPlay);
+            video.addEventListener('loadedmetadata', handleLoadedMetadata);
+            
+            // Try immediately if video is already ready
+            if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+                playVideo();
+            }
+            
+            return () => {
+                video.removeEventListener('canplay', handleCanPlay);
+                video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            };
+        } else {
+            // Clear srcObject when stream stops
+            if (video.srcObject) {
+                console.log('🧹 Clearing video srcObject');
+                video.srcObject = null;
+                streamAttachedRef.current = false;
+            }
         }
     }, [activeStream]);
 
