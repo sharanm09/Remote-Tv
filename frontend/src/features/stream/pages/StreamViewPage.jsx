@@ -1205,7 +1205,7 @@ const StreamViewPage = () => {
                                     <h2 className="text-sm font-bold text-gray-900">{device?.name || 'Device'}</h2>
                                     <span className="px-2 py-0.5 bg-gray-100 text-[9px] font-bold text-gray-500 rounded uppercase tracking-wider">{device?.type || 'Android TV'}</span>
                                 </div>
-                                <p className="text-[10px] font-mono font-bold text-gray-400 ml-5">{device?.location || '192.168.1.101'}</p>
+                                 <p className="text-[10px] font-mono font-bold text-gray-400 ml-5">{device?.specifications?.ipAddress || device?.location || '—'}</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 {isRecording && (
